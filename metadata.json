@@ -1,0 +1,6 @@
+{
+  "name": "Chai Please - Tapri Tycoon",
+  "description": "A vibrant 2D Indian roadside chai tapri management and arcade simulation game.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

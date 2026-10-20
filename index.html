@@ -1,0 +1,3272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Chai Please - Tapri Tycoon 3D</title>
+    <meta name="description" content="Chai Please - Tapri Tycoon 3D: A smooth 60FPS Three.js 3D Indian roadside chai tapri simulation game with dynamic monsoon weather." />
+    <meta property="og:title" content="Chai Please - Tapri Tycoon 3D" />
+    <meta property="og:description" content="Brew cutting chai in 3D, stack cups on your head, serve customers through sunny days and monsoon showers, and hire Chotu staff!" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@500;600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet" />
+
+    <!-- Three.js r160 Import Map for Standalone Single-File Execution -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+        }
+      }
+    </script>
+
+    <style>
+      :root {
+        --bg-deep: #1e0f08;
+        --bg-cream: #fff8eb;
+        --border-brass: #d97706;
+        --danger-red: #dc2626;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+      }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background-color: var(--bg-deep);
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+        color: var(--bg-cream);
+        touch-action: none;
+      }
+
+      #game-shell {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background: #241209;
+      }
+
+      #canvas-container {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+      }
+
+      #canvas-container canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
+        touch-action: none;
+      }
+
+      /* 3D World Projected UI Layer (Customer Demand Bubbles & Pooled Floating +$ Text) */
+      #world-ui-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: 5;
+      }
+
+      .demand-bubble {
+        position: absolute;
+        left: 0;
+        top: 0;
+        background: #fff8eb;
+        border: 3px solid #d97706;
+        border-radius: 14px;
+        padding: 6px 12px 8px;
+        min-width: 120px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+        pointer-events: auto;
+        cursor: pointer;
+        will-change: transform;
+      }
+
+      .demand-bubble::after {
+        content: '';
+        position: absolute;
+        bottom: -9px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-width: 9px 8px 0;
+        border-style: solid;
+        border-color: #d97706 transparent transparent;
+      }
+
+      .demand-bubble.monsoon-boost {
+        border-color: #0284c7;
+        background: #f0f9ff;
+      }
+
+      .demand-bubble.monsoon-boost::after {
+        border-color: #0284c7 transparent transparent;
+      }
+
+      .demand-bubble.angry {
+        background: #fef2f2;
+        border-color: #dc2626;
+        box-shadow: 0 0 18px rgba(220, 38, 38, 0.7);
+      }
+
+      .demand-bubble.angry::after {
+        border-color: #dc2626 transparent transparent;
+      }
+
+      .demand-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-weight: 800;
+        font-size: 16px;
+        color: #29150c;
+        white-space: nowrap;
+      }
+
+      .demand-bubble.angry .demand-top {
+        color: #b91c1c;
+      }
+
+      .demand-price {
+        font-family: 'JetBrains Mono', monospace;
+        font-variant-numeric: tabular-nums;
+        font-size: 13px;
+        font-weight: 700;
+        color: #15803d;
+      }
+
+      .demand-weather-tag {
+        display: none;
+        font-size: 9.5px;
+        font-weight: 700;
+        color: #0369a1;
+        margin-top: 2px;
+        text-align: center;
+      }
+
+      .demand-bubble.monsoon-boost .demand-weather-tag {
+        display: block;
+      }
+
+      .demand-bar-bg {
+        width: 100%;
+        height: 6px;
+        background: rgba(41, 21, 12, 0.16);
+        border-radius: 4px;
+        margin-top: 5px;
+        overflow: hidden;
+      }
+
+      /* GPU-composited scaleX bar (zero DOM layout reflows per frame) */
+      .demand-bar-fill {
+        height: 100%;
+        width: 100%;
+        background: #22c55e;
+        border-radius: 4px;
+        transform-origin: left center;
+        transform: scaleX(1);
+        will-change: transform;
+      }
+
+      .demand-tap-hint {
+        font-size: 9.5px;
+        font-weight: 700;
+        text-align: center;
+        color: #9a3412;
+        margin-top: 3px;
+        letter-spacing: 0.02em;
+      }
+
+      .floating-text {
+        position: absolute;
+        left: 0;
+        top: 0;
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-weight: 800;
+        font-size: 24px;
+        white-space: nowrap;
+        pointer-events: none;
+        text-shadow: 0 2px 0 #1c0d06, 0 4px 10px rgba(0, 0, 0, 0.7);
+        will-change: transform, opacity;
+        display: none;
+      }
+
+      /* Low-Occlusion Perimeter HUD */
+      .hud-layer {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 12px 16px;
+        z-index: 10;
+      }
+
+      .hud-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        width: 100%;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .stat-cluster {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        pointer-events: auto;
+      }
+
+      .stat-card {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        background: rgba(32, 16, 9, 0.94);
+        border: 2px solid var(--border-brass);
+        border-radius: 12px;
+        padding: 7px 12px;
+        box-shadow: 0 5px 14px rgba(0, 0, 0, 0.45);
+        transition: transform 0.14s ease, border-color 0.2s ease;
+      }
+
+      .stat-card.pop {
+        transform: scale(1.08);
+      }
+
+      .stat-card.weather-card {
+        cursor: pointer;
+        border-color: #f59e0b;
+      }
+
+      .stat-card.weather-card.rain-active {
+        background: rgba(15, 32, 52, 0.94);
+        border-color: #38bdf8;
+      }
+
+      .stat-icon {
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 17px;
+        background: rgba(245, 158, 11, 0.18);
+        border-radius: 8px;
+        flex-shrink: 0;
+      }
+
+      .stat-content {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .stat-label {
+        font-size: 10.5px;
+        font-weight: 600;
+        color: #f3cfa4;
+        line-height: 1.1;
+      }
+
+      .stat-value {
+        font-family: 'JetBrains Mono', monospace;
+        font-variant-numeric: tabular-nums;
+        font-size: 17px;
+        font-weight: 700;
+        color: #ffffff;
+        line-height: 1.2;
+      }
+
+      .stat-value.money-val {
+        color: #fde047;
+      }
+
+      .weather-sub {
+        font-size: 10.5px;
+        font-weight: 700;
+        color: #7dd3fc;
+      }
+
+      .hud-controls {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 7px;
+        pointer-events: auto;
+      }
+
+      .icon-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(32, 16, 9, 0.94);
+        border: 2px solid var(--border-brass);
+        color: var(--bg-cream);
+        padding: 7px 11px;
+        border-radius: 10px;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 12.5px;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+      }
+
+      .icon-btn:hover {
+        background: #3e2115;
+      }
+
+      .icon-btn.offline-btn {
+        background: linear-gradient(135deg, #9a3412, #c2410c);
+        border-color: #fb923c;
+      }
+
+      /* Bottom Controls: Joystick + Collapsible Unified Upgrade Dock */
+      .hud-bottom {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 14px;
+        width: 100%;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .joystick-zone {
+        position: relative;
+        width: 112px;
+        height: 112px;
+        border-radius: 50%;
+        background: rgba(32, 16, 9, 0.82);
+        border: 2px solid rgba(245, 158, 11, 0.7);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        touch-action: none;
+      }
+
+      .joystick-ring {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        border: 1px dashed rgba(253, 230, 196, 0.4);
+        pointer-events: none;
+      }
+
+      .joystick-knob {
+        position: absolute;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, #fbbf24, #d97706);
+        border: 2px solid #fff8eb;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        pointer-events: none;
+        transform: translate3d(0px, 0px, 0);
+        will-change: transform;
+      }
+
+      .joystick-hint {
+        position: absolute;
+        bottom: -19px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 10.5px;
+        font-weight: 600;
+        color: #fde6c4;
+        white-space: nowrap;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+      }
+
+      .dock-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
+        pointer-events: auto;
+      }
+
+      .dock-wrapper.collapsed .upgrade-dock {
+        display: none;
+      }
+
+      .dock-toggle-btn {
+        background: rgba(32, 16, 9, 0.92);
+        border: 1px solid rgba(245, 158, 11, 0.55);
+        color: #fde6c4;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .upgrade-dock {
+        display: flex;
+        align-items: stretch;
+        gap: 9px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .action-card-btn {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 14px;
+        border-radius: 14px;
+        border: 2px solid var(--border-brass);
+        background: rgba(32, 16, 9, 0.96);
+        color: var(--bg-cream);
+        cursor: pointer;
+        text-align: left;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .action-card-btn:hover:not(:disabled) {
+        border-color: #fde047;
+      }
+
+      .action-card-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        border-color: #573b26;
+      }
+
+      .action-card-btn.brew-btn {
+        background: linear-gradient(135deg, #9a3412 0%, #7c2d12 100%);
+        border-color: #fb923c;
+      }
+
+      .action-card-btn.affordable-staff {
+        background: linear-gradient(135deg, #14532d 0%, #166534 100%);
+        border-color: #4ade80;
+      }
+
+      .action-card-btn.affordable-stack {
+        background: linear-gradient(135deg, #78350f 0%, #92400e 100%);
+        border-color: #facc15;
+      }
+
+      .btn-emoji {
+        font-size: 22px;
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: rgba(255, 248, 235, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .btn-details {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .btn-title {
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-size: 14.5px;
+        font-weight: 700;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .btn-sub {
+        font-size: 10.5px;
+        font-weight: 600;
+        color: #fed7aa;
+      }
+
+      .price-tag {
+        font-family: 'JetBrains Mono', monospace;
+        font-variant-numeric: tabular-nums;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #fde047;
+        margin-left: 3px;
+      }
+
+      /* Modals & Overlays */
+      .overlay-screen {
+        position: absolute;
+        inset: 0;
+        z-index: 30;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(16, 7, 3, 0.82);
+      }
+
+      .overlay-screen.hidden {
+        display: none;
+      }
+
+      .modal-card {
+        width: 100%;
+        max-width: 520px;
+        background: linear-gradient(180deg, #2d160b 0%, #1f0e06 100%);
+        border: 3px solid #f59e0b;
+        border-radius: 20px;
+        padding: 26px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+        text-align: center;
+        color: var(--bg-cream);
+      }
+
+      .title-lockup {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+
+      .title-heading {
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-size: clamp(1.8rem, 4vw, 2.6rem);
+        font-weight: 800;
+        line-height: 1.05;
+        color: #fde047;
+        text-shadow: 0 3px 0 #9a3412;
+        margin-top: 8px;
+      }
+
+      .title-sub {
+        font-size: 14px;
+        font-weight: 600;
+        color: #fed7aa;
+        margin-top: 4px;
+      }
+
+      .rules-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin: 16px 0 20px;
+        text-align: left;
+      }
+
+      .rule-item {
+        background: rgba(255, 248, 235, 0.06);
+        border: 1px solid rgba(245, 158, 0.28);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #fde6c4;
+      }
+
+      .rule-item strong {
+        display: block;
+        color: #fde047;
+        font-size: 13px;
+        margin-bottom: 2px;
+      }
+
+      .primary-cta {
+        width: 100%;
+        padding: 13px 22px;
+        border-radius: 14px;
+        border: 2px solid #fef08a;
+        background: linear-gradient(135deg, #ea580c 0%, #d97706 100%);
+        color: #ffffff;
+        font-family: 'Bricolage Grotesque', sans-serif;
+        font-size: 19px;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 5px 0 #7c2d12;
+      }
+
+      .primary-cta:active {
+        transform: translateY(2px);
+        box-shadow: 0 3px 0 #7c2d12;
+      }
+
+      .offline-summary-box {
+        background: rgba(21, 128, 61, 0.18);
+        border: 2px solid #4ade80;
+        border-radius: 14px;
+        padding: 16px;
+        margin: 14px 0 18px;
+      }
+
+      .offline-amount {
+        font-family: 'JetBrains Mono', monospace;
+        font-variant-numeric: tabular-nums;
+        font-size: 34px;
+        font-weight: 800;
+        color: #4ade80;
+        margin: 6px 0;
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .secondary-cta {
+        flex: 1;
+        padding: 10px 14px;
+        border-radius: 12px;
+        border: 2px solid #78350f;
+        background: #3b1f12;
+        color: #fde6c4;
+        font-weight: 700;
+        font-size: 13.5px;
+        cursor: pointer;
+      }
+
+      @media (max-width: 720px) {
+        .hud-layer {
+          padding: 8px 10px;
+        }
+        .stat-card {
+          padding: 5px 9px;
+          gap: 6px;
+        }
+        .stat-value {
+          font-size: 14px;
+        }
+        .joystick-zone {
+          width: 92px;
+          height: 92px;
+        }
+        .joystick-ring {
+          width: 66px;
+          height: 66px;
+        }
+        .joystick-knob {
+          width: 36px;
+          height: 36px;
+        }
+        .action-card-btn {
+          padding: 7px 10px;
+        }
+        .btn-emoji {
+          width: 30px;
+          height: 30px;
+          font-size: 18px;
+        }
+        .btn-title {
+          font-size: 13px;
+        }
+        .rules-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-shell">
+      <!-- WebGL Mount Container -->
+      <div id="canvas-container"></div>
+
+      <!-- 3D-to-2D Projected World Labels (Demand Bubbles & Pooled Floating +$ Texts) -->
+      <div id="world-ui-layer"></div>
+
+      <!-- Low-Occlusion Perimeter HUD -->
+      <div class="hud-layer">
+        <!-- Top Status Bar -->
+        <div class="hud-top">
+          <div class="stat-cluster">
+            <div class="stat-card" id="money-card">
+              <div class="stat-icon">💰</div>
+              <div class="stat-content">
+                <span class="stat-label">Tapri Cash</span>
+                <span class="stat-value money-val" id="hud-money">$50</span>
+              </div>
+            </div>
+
+            <div class="stat-card" id="stack-card">
+              <div class="stat-icon">☕</div>
+              <div class="stat-content">
+                <span class="stat-label">3D Head Stack</span>
+                <span class="stat-value" id="hud-stack">2 / 5</span>
+              </div>
+            </div>
+
+            <div class="stat-card" id="staff-card">
+              <div class="stat-icon">👳🏽‍♂️</div>
+              <div class="stat-content">
+                <span class="stat-label">Chotu Staff</span>
+                <span class="stat-value" id="hud-staff">0 · 0/3s</span>
+              </div>
+            </div>
+
+            <!-- Dynamic Weather Status & Toggle Card -->
+            <div class="stat-card weather-card" id="weather-card" title="Click or press C to cycle Weather (Sunny / Light Rain / Monsoon Shower)">
+              <div class="stat-icon" id="weather-icon">☀️</div>
+              <div class="stat-content">
+                <span class="stat-label">Tapri Weather [C]</span>
+                <span class="stat-value" id="hud-weather" style="font-size: 14px">Sunny · 1–5 Chai</span>
+                <span class="weather-sub" id="hud-weather-sub">Normal Arrival</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon">⭐</div>
+              <div class="stat-content">
+                <span class="stat-label">Served · Walkouts</span>
+                <span class="stat-value" id="hud-served">0 · 0</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hud-controls">
+            <button type="button" class="icon-btn offline-btn" id="btn-sim-offline" title="Simulate Offline Earnings">
+              <span>🌙 Offline +$</span>
+            </button>
+            <button type="button" class="icon-btn" id="btn-mute" title="Toggle Sound (M)">
+              <span id="mute-label">🔊 Sound</span>
+            </button>
+            <button type="button" class="icon-btn" id="btn-help" title="How to Play & Options">
+              <span>❓ Help / Menu</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Bottom Controls: Virtual Joystick + Collapsible Action/Upgrade Dock -->
+        <div class="hud-bottom">
+          <div class="joystick-zone" id="joystick-zone" aria-label="3D Movement Joystick">
+            <div class="joystick-ring"></div>
+            <div class="joystick-knob" id="joystick-knob"></div>
+            <span class="joystick-hint">Drag or Tap 3D World</span>
+          </div>
+
+          <div class="dock-wrapper" id="dock-wrapper">
+            <button type="button" class="dock-toggle-btn" id="btn-toggle-dock" title="Toggle Upgrade Controls (H)">
+              ▾ Hide Controls (H)
+            </button>
+            <div class="upgrade-dock">
+              <button type="button" class="action-card-btn brew-btn" id="btn-brew">
+                <div class="btn-emoji">🫖</div>
+                <div class="btn-details">
+                  <div class="btn-title">Brew Chai <span class="price-tag">[SPACE]</span></div>
+                  <div class="btn-sub" id="brew-sub">Tap 3D kettle or stand in ring</div>
+                </div>
+              </button>
+
+              <button type="button" class="action-card-btn" id="btn-hire-staff">
+                <div class="btn-emoji">🙋🏽‍♂️</div>
+                <div class="btn-details">
+                  <div class="btn-title">Hire Staff <span class="price-tag" id="staff-cost-label">$100</span></div>
+                  <div class="btn-sub">3D Chotu serves 1 table / 3s</div>
+                </div>
+              </button>
+
+              <button type="button" class="action-card-btn" id="btn-upgrade-stack">
+                <div class="btn-emoji">🥞</div>
+                <div class="btn-details">
+                  <div class="btn-title">Upgrade Stack <span class="price-tag" id="stack-cost-label">$200</span></div>
+                  <div class="btn-sub" id="stack-sub-label">Max Head Stack +2 (5 → 7)</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Offline Earnings Popup Modal -->
+      <div class="overlay-screen hidden" id="offline-modal">
+        <div class="modal-card">
+          <div class="title-lockup">
+            <div style="font-size: 44px; line-height: 1">🌙☕</div>
+            <h2 class="title-heading" style="font-size: 26px">Tapri Offline Earnings!</h2>
+            <p class="title-sub" id="offline-time-text">Your 3D Tapri kept brewing while you were away</p>
+          </div>
+
+          <div class="offline-summary-box">
+            <div style="font-size: 13px; color: #fde6c4; font-weight: 600" id="offline-cups-text">
+              Cutting Chai Served Offline
+            </div>
+            <div class="offline-amount" id="offline-money-text">+$80</div>
+            <div style="font-size: 12px; color: #bbf7d0">
+              Tip: Hiring more 3D Chotu Staff boosts your offline earnings rate!
+            </div>
+          </div>
+
+          <button type="button" class="primary-cta" id="btn-collect-offline">
+            Collect Cash &amp; Continue
+          </button>
+        </div>
+      </div>
+
+      <!-- Help / Pause & Reset Modal -->
+      <div class="overlay-screen hidden" id="pause-modal">
+        <div class="modal-card">
+          <div class="title-lockup">
+            <h2 class="title-heading" style="font-size: 26px">CHAI PLEASE 3D</h2>
+            <p class="title-sub">Isometric 3D Tapri Tycoon · Monsoon &amp; Cutting Chai</p>
+          </div>
+
+          <div class="rules-grid">
+            <div class="rule-item">
+              <strong>1. Brew at the 3D Brass Kettle</strong>
+              Walk into the Brew Ring, tap the stall, or press <b>SPACE</b> to stack 3D chai glasses on your head.
+            </div>
+            <div class="rule-item">
+              <strong>2. Serve 3 Tables ($10/cup)</strong>
+              Low-poly 3D customers order 1–5 Chai. Tap a customer/bubble or walk close to earn <b>Demand × $10</b>!
+            </div>
+            <div class="rule-item">
+              <strong>3. Dynamic Weather [Click / C]</strong>
+              Rain &amp; Monsoon showers slow down customer arrivals but boost hot chai demand up to <b>3–5 cups</b>!
+            </div>
+            <div class="rule-item">
+              <strong>4. Angry Red (&gt;10s) &amp; Staff</strong>
+              Waiting &gt;10s turns customers <b>RED</b> (&gt;15s leaves with <b>-$20</b>). Hire Chotu (<b>$100</b>) to auto-serve!
+            </div>
+          </div>
+
+          <div class="offline-summary-box" style="border-color: #f59e0b; background: rgba(245, 158, 11, 0.12); margin: 10px 0 14px; padding: 10px">
+            <div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #fde047" id="pause-stats-text">
+              Cash: $50 · Max Stack: 5 · Staff: 0
+            </div>
+          </div>
+
+          <button type="button" class="primary-cta" id="btn-resume-game">
+            Resume Shift (Esc / Space)
+          </button>
+
+          <div class="modal-actions">
+            <button type="button" class="secondary-cta" id="btn-download-html">
+              ⬇ Download Single-File HTML
+            </button>
+            <button type="button" class="secondary-cta" id="btn-reset-game">
+              ↺ Reset Progress
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden root for Vite build compatibility -->
+    <div id="root" style="display: none"></div>
+    <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Ultra-Smooth 60FPS Three.js r160 3D Game Engine (100% Pooled, Zero Hangs) -->
+    <script type="module">
+      import * as THREE from 'three';
+
+      // ==========================================
+      // 1. WEB AUDIO SYNTHESIZER (Non-blocking Beeps)
+      // ==========================================
+      const Sound = {
+        ctx: null,
+        muted: false,
+        init() {
+          try {
+            if (!this.ctx) {
+              const AudioCtx = window.AudioContext || window.webkitAudioContext;
+              if (AudioCtx) this.ctx = new AudioCtx();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+              this.ctx.resume().catch(() => {});
+            }
+          } catch (e) {}
+        },
+        tone(freq, type, duration, vol = 0.12, slideTo = null, delay = 0) {
+          if (this.muted) return;
+          try {
+            this.init();
+            if (!this.ctx || this.ctx.state !== 'running') return;
+            const now = this.ctx.currentTime + delay;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, now);
+            if (slideTo) {
+              osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
+            }
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(vol, now + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + duration + 0.02);
+          } catch (e) {}
+        },
+        brew(stackCount, maxStack) {
+          const base = 390 + (stackCount / Math.max(1, maxStack)) * 300;
+          this.tone(base, 'sine', 0.1, 0.13, base * 1.25);
+        },
+        maxStackFull() {
+          this.tone(230, 'triangle', 0.08, 0.09, 185);
+        },
+        serve() {
+          this.tone(523.25, 'triangle', 0.09, 0.14, null, 0);
+          this.tone(659.25, 'triangle', 0.09, 0.14, null, 0.055);
+          this.tone(783.99, 'sine', 0.16, 0.15, 1046.5, 0.11);
+        },
+        angryWarn() {
+          this.tone(320, 'sawtooth', 0.08, 0.08, 280, 0);
+          this.tone(320, 'sawtooth', 0.08, 0.08, 280, 0.11);
+        },
+        angryLeave() {
+          this.tone(250, 'sawtooth', 0.16, 0.14, 175, 0);
+          this.tone(175, 'sawtooth', 0.24, 0.14, 110, 0.15);
+        },
+        upgrade() {
+          const notes = [440, 554.37, 659.25, 880];
+          for (let i = 0; i < notes.length; i++) {
+            this.tone(notes[i], 'triangle', 0.14, 0.14, null, i * 0.06);
+          }
+        },
+        weatherShift(isRainy) {
+          if (isRainy) {
+            this.tone(330, 'sine', 0.16, 0.08, 260, 0);
+            this.tone(95, 'triangle', 0.38, 0.1, 48, 0.07);
+          } else {
+            this.tone(587.33, 'sine', 0.11, 0.09, 783.99, 0);
+            this.tone(880, 'sine', 0.14, 0.09, 1046.5, 0.09);
+          }
+        }
+      };
+
+      // ==========================================
+      // 2. THREE.JS SCENE, FAST PBR & ISOMETRIC CAMERA
+      // ==========================================
+      const container = document.getElementById('canvas-container');
+      const worldUiLayer = document.getElementById('world-ui-layer');
+
+      let viewportW = window.innerWidth;
+      let viewportH = window.innerHeight;
+
+      const isHeadless = navigator.webdriver || /HeadlessChrome/i.test(navigator.userAgent);
+      const renderer = new THREE.WebGLRenderer({
+        antialias: !isHeadless,
+        powerPreference: 'high-performance',
+        stencil: false
+      });
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      renderer.setPixelRatio(isHeadless ? 1 : Math.min(window.devicePixelRatio || 1, 1.5));
+      renderer.setSize(viewportW, viewportH);
+      renderer.shadowMap.enabled = !isHeadless;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      const scene = new THREE.Scene();
+      const currentBgColor = new THREE.Color(0x28150b);
+      const targetBgColor = new THREE.Color(0x28150b);
+      scene.background = currentBgColor;
+      scene.fog = new THREE.FogExp2(0x28150b, 0.015);
+
+      // Isometric-style PerspectiveCamera
+      const camera = new THREE.PerspectiveCamera(36, viewportW / viewportH, 1.0, 95);
+      const BASE_CAM_OFFSET = new THREE.Vector3(0, 21.5, 22.5);
+      const camTarget = new THREE.Vector3(0, 0.6, 0.5);
+      camera.position.copy(BASE_CAM_OFFSET);
+      camera.lookAt(camTarget);
+
+      // Fast, Crisp 3-Point Outdoor + Tapri Warm Lighting Rig
+      const hemiLight = new THREE.HemisphereLight(0xfff4d6, 0x6b3a1e, 1.15);
+      hemiLight.position.set(0, 30, 0);
+      scene.add(hemiLight);
+
+      const sunLight = new THREE.DirectionalLight(0xfff1d0, 2.3);
+      sunLight.position.set(13, 24, 15);
+      sunLight.castShadow = !isHeadless;
+      sunLight.shadow.mapSize.width = 1024;
+      sunLight.shadow.mapSize.height = 1024;
+      const d = 15;
+      sunLight.shadow.camera.left = -d;
+      sunLight.shadow.camera.right = d;
+      sunLight.shadow.camera.top = d;
+      sunLight.shadow.camera.bottom = -d;
+      sunLight.shadow.camera.near = 4;
+      sunLight.shadow.camera.far = 48;
+      sunLight.shadow.bias = -0.0008;
+      scene.add(sunLight);
+
+      const rimLight = new THREE.DirectionalLight(0xffb74d, 0.85);
+      rimLight.position.set(-14, 12, -10);
+      scene.add(rimLight);
+
+      // Warm Stove Point Light inside the Tapri
+      const stoveLight = new THREE.PointLight(0xff7b00, 3.0, 10, 1.6);
+      stoveLight.position.set(-6.0, 2.0, -1.6);
+      scene.add(stoveLight);
+
+      // Reusable Math Objects (Zero Garbage Collection in Render Loop)
+      const _projVec = new THREE.Vector3();
+      const _rayPlaneIntersect = new THREE.Vector3();
+      const _groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const _staffFromVec = new THREE.Vector3();
+      const _playerServeVec = new THREE.Vector3();
+      const _tableTargetVec = new THREE.Vector3();
+      const _brewStartVec = new THREE.Vector3();
+      const _brewEndVec = new THREE.Vector3();
+      const raycaster = new THREE.Raycaster();
+      const pointerNDC = new THREE.Vector2();
+      const clickableMeshes = [];
+
+      // ==========================================
+      // 3. SHARED FAST PBR MATERIALS (Zero Multi-Pass Transmission Overhead)
+      // ==========================================
+      function createSignTexture(text, bgHex, textHex, borderHex) {
+        const c = document.createElement('canvas');
+        c.width = 512;
+        c.height = 128;
+        const g = c.getContext('2d');
+        g.fillStyle = bgHex;
+        g.fillRect(0, 0, 512, 128);
+        g.strokeStyle = borderHex;
+        g.lineWidth = 10;
+        g.strokeRect(6, 6, 500, 116);
+        g.fillStyle = textHex;
+        g.font = '800 38px sans-serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(text, 256, 66);
+        const tex = new THREE.CanvasTexture(c);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+
+      function createAwningTexture() {
+        const c = document.createElement('canvas');
+        c.width = 128;
+        c.height = 128;
+        const g = c.getContext('2d');
+        for (let i = 0; i < 8; i++) {
+          g.fillStyle = i % 2 === 0 ? '#facc15' : '#ea580c';
+          g.fillRect(i * 16, 0, 16, 128);
+        }
+        const tex = new THREE.CanvasTexture(c);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        return tex;
+      }
+
+      const MAT = {
+        groundCourtyard: new THREE.MeshStandardMaterial({ color: 0xe6be8a, roughness: 0.86, metalness: 0.05 }),
+        outerEarth: new THREE.MeshLambertMaterial({ color: 0x6e3b1e }),
+        roadAsphalt: new THREE.MeshStandardMaterial({ color: 0x33302e, roughness: 0.82, metalness: 0.08 }),
+        roadStripe: new THREE.MeshBasicMaterial({ color: 0xfacc15 }),
+        woodDark: new THREE.MeshStandardMaterial({ color: 0x5c2c16, roughness: 0.78 }),
+        woodWarm: new THREE.MeshStandardMaterial({ color: 0x9a4419, roughness: 0.68 }),
+        woodCounter: new THREE.MeshStandardMaterial({ color: 0xf3cfa4, roughness: 0.55 }),
+        brassPBR: new THREE.MeshStandardMaterial({
+          color: 0xfbbf24,
+          metalness: 0.78,
+          roughness: 0.22,
+          emissive: 0x451a03,
+          emissiveIntensity: 0.25
+        }),
+        copperPBR: new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.7, roughness: 0.28 }),
+        glassJar: new THREE.MeshStandardMaterial({
+          color: 0xe0f2fe,
+          roughness: 0.15,
+          metalness: 0.1,
+          transparent: true,
+          opacity: 0.48,
+          depthWrite: false
+        }),
+        cupGlass: new THREE.MeshStandardMaterial({
+          color: 0xfffbeb,
+          roughness: 0.2,
+          metalness: 0.08,
+          transparent: true,
+          opacity: 0.86
+        }),
+        chaiLiquid: new THREE.MeshStandardMaterial({ color: 0xc2410c, roughness: 0.3 }),
+        chaiFroth: new THREE.MeshBasicMaterial({ color: 0xfff3c4 }),
+        biscuitTan: new THREE.MeshLambertMaterial({ color: 0xd97706 }),
+        lidRed: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.35 }),
+        marigoldOrange: new THREE.MeshLambertMaterial({ color: 0xff6d00 }),
+        marigoldYellow: new THREE.MeshLambertMaterial({ color: 0xfacc15 }),
+        mangoLeaf: new THREE.MeshLambertMaterial({ color: 0x15803d }),
+        skinTone: new THREE.MeshStandardMaterial({ color: 0xc67d43, roughness: 0.62 }),
+        capWhite: new THREE.MeshLambertMaterial({ color: 0xfff8eb }),
+        kurtaCream: new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.7 }),
+        gamchaRed: new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.65 }),
+        pantsDark: new THREE.MeshLambertMaterial({ color: 0x292524 }),
+        staffGreen: new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 0.65 }),
+        angryRedMat: new THREE.MeshStandardMaterial({
+          color: 0xef4444,
+          emissive: 0xb91c1c,
+          emissiveIntensity: 0.6,
+          roughness: 0.4
+        })
+      };
+
+      // ==========================================
+      // 4. BUILD 3D TAPRI ENVIRONMENT & PROPS
+      // ==========================================
+      const worldGroup = new THREE.Group();
+      scene.add(worldGroup);
+
+      // Extended Outdoor Ground & Courtyard
+      const outerGround = new THREE.Mesh(new THREE.PlaneGeometry(110, 110), MAT.outerEarth);
+      outerGround.rotation.x = -Math.PI / 2;
+      outerGround.position.y = -0.05;
+      worldGroup.add(outerGround);
+
+      // Main Tapri Courtyard Pad
+      const courtyard = new THREE.Mesh(new THREE.BoxGeometry(24, 0.16, 17), MAT.groundCourtyard);
+      courtyard.position.set(0, -0.08, 1.0);
+      courtyard.receiveShadow = true;
+      worldGroup.add(courtyard);
+      clickableMeshes.push(courtyard);
+
+      // Courtyard Flagstone Tiles (Single InstancedMesh = 1 Draw Call)
+      const tileGeo = new THREE.BoxGeometry(1.8, 0.03, 1.8);
+      const tileMat = new THREE.MeshLambertMaterial({ color: 0xdab07c });
+      const tileInst = new THREE.InstancedMesh(tileGeo, tileMat, 35);
+      const _dummy = new THREE.Object3D();
+      let tIdx = 0;
+      for (let gx = -9; gx <= 9; gx += 3) {
+        for (let gz = -3; gz <= 6; gz += 2.25) {
+          if (tIdx < 35) {
+            _dummy.position.set(gx + (gz % 2) * 0.25, 0.01, gz);
+            _dummy.rotation.y = ((gx + gz) % 3) * 0.03;
+            _dummy.updateMatrix();
+            tileInst.setMatrixAt(tIdx++, _dummy.matrix);
+          }
+        }
+      }
+      tileInst.computeBoundingSphere();
+      worldGroup.add(tileInst);
+
+      // Back Indian Highway Road (z = -6.8)
+      const roadMesh = new THREE.Mesh(new THREE.BoxGeometry(44, 0.16, 3.6), MAT.roadAsphalt);
+      roadMesh.position.set(0, -0.05, -6.8);
+      roadMesh.receiveShadow = true;
+      worldGroup.add(roadMesh);
+
+      const stripeGeo = new THREE.PlaneGeometry(1.6, 0.18);
+      stripeGeo.rotateX(-Math.PI / 2);
+      const stripeInst = new THREE.InstancedMesh(stripeGeo, MAT.roadStripe, 13);
+      let sIdx = 0;
+      for (let rx = -19.2; rx <= 19.2; rx += 3.2) {
+        if (sIdx < 13) {
+          _dummy.position.set(rx, 0.04, -6.8);
+          _dummy.rotation.set(0, 0, 0);
+          _dummy.updateMatrix();
+          stripeInst.setMatrixAt(sIdx++, _dummy.matrix);
+        }
+      }
+      worldGroup.add(stripeInst);
+
+      // Roadside Milestone
+      const milestoneGroup = new THREE.Group();
+      milestoneGroup.position.set(9.2, 0, -4.7);
+      const msBase = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.8, 0.35), MAT.capWhite);
+      msBase.position.y = 0.4;
+      const msTop = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.45, 0.45, 0.35, 12, 1, false, 0, Math.PI),
+        MAT.marigoldYellow
+      );
+      msTop.rotation.z = Math.PI / 2;
+      msTop.rotation.y = Math.PI / 2;
+      msTop.position.y = 0.8;
+      milestoneGroup.add(msBase, msTop);
+      worldGroup.add(milestoneGroup);
+
+      // Natural Perimeter Trees
+      const treeGroups = [];
+      const treeTrunkGeo = new THREE.CylinderGeometry(0.24, 0.38, 1.8, 7);
+      const foliageMat = new THREE.MeshLambertMaterial({ color: 0x166534 });
+      const foliageGeos = [
+        new THREE.DodecahedronGeometry(1.25, 1),
+        new THREE.DodecahedronGeometry(0.9, 1),
+        new THREE.DodecahedronGeometry(0.95, 1),
+        new THREE.DodecahedronGeometry(0.85, 1)
+      ];
+
+      function createStylizedTree(x, z, scale = 1) {
+        const tree = new THREE.Group();
+        tree.position.set(x, 0, z);
+        tree.scale.setScalar(scale);
+
+        const trunk = new THREE.Mesh(treeTrunkGeo, MAT.woodDark);
+        trunk.position.y = 0.9;
+        trunk.castShadow = true;
+        tree.add(trunk);
+
+        const puffCoords = [
+          [0, 2.3, 0],
+          [-0.6, 1.9, 0.4],
+          [0.65, 2.0, -0.3],
+          [0, 2.9, -0.2]
+        ];
+        for (let i = 0; i < 4; i++) {
+          const leaf = new THREE.Mesh(foliageGeos[i], foliageMat);
+          leaf.position.set(puffCoords[i][0], puffCoords[i][1], puffCoords[i][2]);
+          leaf.castShadow = i === 0;
+          tree.add(leaf);
+        }
+
+        worldGroup.add(tree);
+        treeGroups.push(tree);
+      }
+
+      createStylizedTree(-11.2, -4.4, 1.15);
+      createStylizedTree(-11.8, 4.2, 0.95);
+      createStylizedTree(11.4, -3.8, 1.1);
+      createStylizedTree(11.6, 5.2, 1.0);
+
+      // ==========================================
+      // 5. 3D ROADSIDE TAPRI STALL
+      // ==========================================
+      const MACHINE_POS = new THREE.Vector3(-6.2, 0, -1.5);
+      const BREW_ZONE_POS = new THREE.Vector3(-3.8, 0, -1.2);
+      const marigoldBeads = [];
+
+      const tapriGroup = new THREE.Group();
+      tapriGroup.position.copy(MACHINE_POS);
+      tapriGroup.userData.clickableType = 'kettle';
+      worldGroup.add(tapriGroup);
+
+      // 1. Wooden Stall Base Counter
+      const stallBase = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.25, 4.4), MAT.woodWarm);
+      stallBase.position.set(0, 0.625, 0);
+      stallBase.castShadow = true;
+      stallBase.receiveShadow = true;
+      stallBase.userData.clickableType = 'kettle';
+      tapriGroup.add(stallBase);
+      clickableMeshes.push(stallBase);
+
+      // Countertop Slab
+      const counterTop = new THREE.Mesh(new THREE.BoxGeometry(3.45, 0.14, 4.65), MAT.woodCounter);
+      counterTop.position.set(0, 1.31, 0);
+      counterTop.receiveShadow = true;
+      counterTop.userData.clickableType = 'kettle';
+      tapriGroup.add(counterTop);
+      clickableMeshes.push(counterTop);
+
+      // 4 Wooden Corner Pillars
+      const pillarGeo = new THREE.CylinderGeometry(0.1, 0.1, 2.5, 8);
+      const pillarOffsets = [
+        [-1.45, 2.5, -2.05],
+        [1.45, 2.5, -2.05],
+        [-1.45, 2.5, 2.05],
+        [1.45, 2.5, 2.05]
+      ];
+      for (let i = 0; i < 4; i++) {
+        const pillar = new THREE.Mesh(pillarGeo, MAT.woodDark);
+        pillar.position.set(pillarOffsets[i][0], pillarOffsets[i][1], pillarOffsets[i][2]);
+        tapriGroup.add(pillar);
+      }
+
+      // Yellow & Orange Striped Slanted Awning Roof
+      const awningMat = new THREE.MeshStandardMaterial({
+        map: createAwningTexture(),
+        roughness: 0.65
+      });
+      const awningRoof = new THREE.Mesh(new THREE.BoxGeometry(3.9, 0.16, 5.1), awningMat);
+      awningRoof.position.set(0.1, 3.78, 0);
+      awningRoof.rotation.z = -0.14;
+      awningRoof.castShadow = true;
+      tapriGroup.add(awningRoof);
+
+      // Overhead Signboard ("GARMA GARAM CHAI")
+      const signTex = createSignTexture('☕ GARMA GARAM CHAI ☕', '#facc15', '#7c2d12', '#9a3412');
+      const signBoard = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.68, 4.2),
+        new THREE.MeshBasicMaterial({ map: signTex })
+      );
+      signBoard.position.set(1.88, 4.05, 0);
+      tapriGroup.add(signBoard);
+
+      // Marigold & Mango-Leaf Garland (Toran)
+      const beadGeo = new THREE.SphereGeometry(0.11, 8, 8);
+      const leafGeo = new THREE.ConeGeometry(0.08, 0.24, 4);
+      for (let i = 0; i <= 16; i++) {
+        const t = i / 16;
+        const gz = -2.0 + t * 4.0;
+        const sag = Math.sin(t * Math.PI) * 0.25;
+        const bead = new THREE.Mesh(beadGeo, i % 2 === 0 ? MAT.marigoldOrange : MAT.marigoldYellow);
+        bead.position.set(1.52, 3.48 - sag, gz);
+        tapriGroup.add(bead);
+        marigoldBeads.push({ mesh: bead, baseZ: gz, phase: i * 0.45 });
+
+        if (i % 2 === 0) {
+          const leaf = new THREE.Mesh(leafGeo, MAT.mangoLeaf);
+          leaf.rotation.x = Math.PI;
+          leaf.position.set(1.52, 3.64 - sag * 0.5, gz);
+          tapriGroup.add(leaf);
+        }
+      }
+
+      // Gas Stove & Blue Flame Ring
+      const stoveBox = new THREE.Mesh(
+        new THREE.BoxGeometry(1.1, 0.18, 1.1),
+        new THREE.MeshLambertMaterial({ color: 0x334155 })
+      );
+      stoveBox.position.set(0.15, 1.46, -0.55);
+      tapriGroup.add(stoveBox);
+
+      const flameRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.28, 0.045, 6, 16),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+      );
+      flameRing.rotation.x = Math.PI / 2;
+      flameRing.position.set(0.15, 1.57, -0.55);
+      tapriGroup.add(flameRing);
+
+      // Gleaming 3D Brass Kettle / Samovar
+      const kettleGroup = new THREE.Group();
+      kettleGroup.position.set(0.15, 1.58, -0.55);
+      tapriGroup.add(kettleGroup);
+
+      const kettleBelly = new THREE.Mesh(new THREE.SphereGeometry(0.52, 16, 12), MAT.brassPBR);
+      kettleBelly.scale.set(1, 0.88, 1);
+      kettleBelly.position.y = 0.42;
+      kettleBelly.castShadow = true;
+      kettleBelly.userData.clickableType = 'kettle';
+      kettleGroup.add(kettleBelly);
+      clickableMeshes.push(kettleBelly);
+
+      const kettleNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 0.28, 14), MAT.brassPBR);
+      kettleNeck.position.y = 0.82;
+      kettleGroup.add(kettleNeck);
+
+      const kettleLid = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), MAT.copperPBR);
+      kettleLid.scale.set(1, 0.45, 1);
+      kettleLid.position.y = 0.96;
+      kettleGroup.add(kettleLid);
+
+      const kettleKnob = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), MAT.brassPBR);
+      kettleKnob.position.y = 1.1;
+      kettleGroup.add(kettleKnob);
+
+      const spoutMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.11, 0.55, 10), MAT.brassPBR);
+      spoutMesh.position.set(0.48, 0.58, 0);
+      spoutMesh.rotation.z = -0.65;
+      kettleGroup.add(spoutMesh);
+
+      // 2 Glass Biscuit Jars on Counter
+      const jarCylGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.68, 12);
+      const cookieBoxGeo = new THREE.BoxGeometry(0.36, 0.07, 0.26);
+      const jarLidGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.12, 12);
+
+      function createBiscuitJar(x, z, lidColorMat) {
+        const jarGroup = new THREE.Group();
+        jarGroup.position.set(x, 1.38, z);
+
+        for (let b = 0; b < 5; b++) {
+          const cookie = new THREE.Mesh(cookieBoxGeo, MAT.biscuitTan);
+          cookie.position.set(0, 0.1 + b * 0.09, 0);
+          cookie.rotation.y = b * 0.4;
+          jarGroup.add(cookie);
+        }
+
+        const glassBody = new THREE.Mesh(jarCylGeo, MAT.glassJar);
+        glassBody.position.y = 0.34;
+        jarGroup.add(glassBody);
+
+        const lid = new THREE.Mesh(jarLidGeo, lidColorMat);
+        lid.position.y = 0.72;
+        jarGroup.add(lid);
+
+        tapriGroup.add(jarGroup);
+      }
+
+      createBiscuitJar(0.45, 0.85, MAT.lidRed);
+      createBiscuitJar(-0.25, 1.35, MAT.marigoldYellow);
+
+      // Glowing 3D Brew Zone Ring on the Courtyard Floor
+      const brewZoneGroup = new THREE.Group();
+      brewZoneGroup.position.set(BREW_ZONE_POS.x, 0.03, BREW_ZONE_POS.z);
+      worldGroup.add(brewZoneGroup);
+
+      const brewRingOuter = new THREE.Mesh(
+        new THREE.RingGeometry(1.15, 1.38, 28),
+        new THREE.MeshBasicMaterial({ color: 0xf97316, side: THREE.DoubleSide })
+      );
+      brewRingOuter.rotation.x = -Math.PI / 2;
+      brewZoneGroup.add(brewRingOuter);
+
+      const brewDiscInner = new THREE.Mesh(
+        new THREE.CircleGeometry(1.15, 28),
+        new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.22, side: THREE.DoubleSide })
+      );
+      brewDiscInner.rotation.x = -Math.PI / 2;
+      brewDiscInner.userData.clickableType = 'kettle';
+      brewZoneGroup.add(brewDiscInner);
+      clickableMeshes.push(brewDiscInner);
+
+      // ==========================================
+      // 6. DYNAMIC WEATHER PARTICLE SYSTEM (SUNNY, RAIN 600 PARTICLES, FOG)
+      // ==========================================
+      const WEATHER_TYPES = {
+        SUNNY: {
+          id: 'SUNNY',
+          label: 'Sunny · 1–5 Chai',
+          sub: '1.0x Arrival · Normal Craving',
+          icon: '☀️',
+          spawnMult: 1.0,
+          minDemand: 1,
+          maxDemand: 5,
+          rainCount: 0,
+          fogDensity: 0.014,
+          windStrength: 0.1,
+          sunIntensity: 2.3,
+          hemiIntensity: 1.15,
+          bgColor: 0x28150b,
+          groundRoughness: 0.86,
+          roadRoughness: 0.82
+        },
+        RAIN: {
+          id: 'RAIN',
+          label: 'Rain (600) · 3–5 Chai',
+          sub: '0.65x Arrival · +Chai Craving!',
+          icon: '🌧️',
+          spawnMult: 1.5,  // slower customer arrivals
+          minDemand: 3,    // rain increases hot chai demand (3-5)
+          maxDemand: 5,
+          rainCount: 600,  // 600 raindrop particles
+          fogDensity: 0.022,
+          windStrength: 0.85,
+          sunIntensity: 0.95,
+          hemiIntensity: 0.72,
+          bgColor: 0x111b27,
+          groundRoughness: 0.2,
+          roadRoughness: 0.16
+        },
+        FOG: {
+          id: 'FOG',
+          label: 'Misty Fog · 2–5 Chai',
+          sub: '0.8x Arrival · Chilly Chai Boost!',
+          icon: '🌫️',
+          spawnMult: 1.25, // slightly slower arrivals in dense fog
+          minDemand: 2,    // chilly fog increases hot chai demand (2-5)
+          maxDemand: 5,
+          rainCount: 0,
+          fogDensity: 0.044, // thick atmospheric morning fog
+          windStrength: 0.25,
+          sunIntensity: 1.1,
+          hemiIntensity: 0.85,
+          bgColor: 0x2b333c,
+          groundRoughness: 0.52,
+          roadRoughness: 0.45
+        }
+      };
+
+      const WEATHER_ORDER = ['SUNNY', 'RAIN', 'FOG'];
+
+      // Fast 3D Raindrop Streak Particle System (600 Particles, DynamicDrawUsage BufferGeometry)
+      const MAX_RAIN_DROPS = 600;
+      const rainPositions = new Float32Array(MAX_RAIN_DROPS * 6);
+      const rainData = new Array(MAX_RAIN_DROPS);
+
+      for (let i = 0; i < MAX_RAIN_DROPS; i++) {
+        const rx = (Math.random() - 0.5) * 28 + 1.5;
+        const ry = Math.random() * 17;
+        const rz = (Math.random() - 0.5) * 22;
+        const speed = 16 + Math.random() * 6;
+        rainData[i] = { x: rx, y: ry, z: rz, speed };
+
+        const idx = i * 6;
+        rainPositions[idx] = rx;
+        rainPositions[idx + 1] = ry;
+        rainPositions[idx + 2] = rz;
+        rainPositions[idx + 3] = rx - 0.18;
+        rainPositions[idx + 4] = ry - 0.8;
+        rainPositions[idx + 5] = rz;
+      }
+
+      const rainGeo = new THREE.BufferGeometry();
+      const rainPosAttr = new THREE.BufferAttribute(rainPositions, 3);
+      rainPosAttr.setUsage(THREE.DynamicDrawUsage);
+      rainGeo.setAttribute('position', rainPosAttr);
+
+      const rainMat = new THREE.LineBasicMaterial({
+        color: 0xbae6fd,
+        transparent: true,
+        opacity: 0.65,
+        depthWrite: false
+      });
+      const rainSystem = new THREE.LineSegments(rainGeo, rainMat);
+      rainSystem.frustumCulled = false;
+      rainSystem.visible = false;
+      worldGroup.add(rainSystem);
+
+      // Pooled 3D Ground Splash Rings
+      const MAX_SPLASHES = 24;
+      const splashGeo = new THREE.RingGeometry(0.06, 0.13, 10);
+      splashGeo.rotateX(-Math.PI / 2);
+      const splashMat = new THREE.MeshBasicMaterial({
+        color: 0xe0f2fe,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      const splashPool = [];
+      for (let i = 0; i < MAX_SPLASHES; i++) {
+        const sMesh = new THREE.Mesh(splashGeo, splashMat);
+        sMesh.visible = false;
+        worldGroup.add(sMesh);
+        splashPool.push({
+          mesh: sMesh,
+          active: false,
+          life: 0,
+          maxLife: 0.32
+        });
+      }
+
+      function spawnRainSplash(x, z) {
+        for (let i = 0; i < MAX_SPLASHES; i++) {
+          const sp = splashPool[i];
+          if (!sp.active) {
+            sp.active = true;
+            sp.life = sp.maxLife;
+            sp.mesh.visible = true;
+            sp.mesh.position.set(x, 0.03, z);
+            sp.mesh.scale.setScalar(0.35);
+            return;
+          }
+        }
+      }
+
+      // ==========================================
+      // 7. 3D CHAI CUP FACTORY (SHARED GEOMETRY & FAST MATERIALS)
+      // ==========================================
+      const cupGlassGeo = new THREE.CylinderGeometry(0.17, 0.12, 0.32, 10);
+      const cupTeaGeo = new THREE.CylinderGeometry(0.155, 0.115, 0.24, 10);
+      const cupFrothGeo = new THREE.CylinderGeometry(0.16, 0.155, 0.04, 10);
+
+      function create3DChaiCup() {
+        const cup = new THREE.Group();
+        const glass = new THREE.Mesh(cupGlassGeo, MAT.cupGlass);
+        glass.position.y = 0.16;
+        cup.add(glass);
+
+        const tea = new THREE.Mesh(cupTeaGeo, MAT.chaiLiquid);
+        tea.position.y = 0.14;
+        cup.add(tea);
+
+        const froth = new THREE.Mesh(cupFrothGeo, MAT.chaiFroth);
+        froth.position.y = 0.27;
+        cup.add(froth);
+
+        return cup;
+      }
+
+      // ==========================================
+      // 8. 3D PLAYER (CUTE BOY WITH CAP & PRE-POOLED HEAD STACK)
+      // ==========================================
+      const playerGroup = new THREE.Group();
+      playerGroup.position.set(-1.8, 0, 1.2);
+      worldGroup.add(playerGroup);
+
+      const shadowDiscGeo = new THREE.CircleGeometry(0.65, 18);
+      const shadowDiscMat = new THREE.MeshBasicMaterial({
+        color: 0x1a0b04,
+        transparent: true,
+        opacity: 0.4,
+        depthWrite: false
+      });
+      const playerShadowDisc = new THREE.Mesh(shadowDiscGeo, shadowDiscMat);
+      playerShadowDisc.rotation.x = -Math.PI / 2;
+      playerShadowDisc.position.y = 0.02;
+      playerGroup.add(playerShadowDisc);
+
+      const playerBodyRig = new THREE.Group();
+      playerGroup.add(playerBodyRig);
+
+      const legGeo = new THREE.CapsuleGeometry(0.13, 0.32, 4, 8);
+      const leftLeg = new THREE.Mesh(legGeo, MAT.pantsDark);
+      leftLeg.position.set(-0.18, 0.28, 0);
+      const rightLeg = new THREE.Mesh(legGeo, MAT.pantsDark);
+      rightLeg.position.set(0.18, 0.28, 0);
+      playerBodyRig.add(leftLeg, rightLeg);
+
+      const torsoMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.78, 12), MAT.kurtaCream);
+      torsoMesh.position.y = 0.82;
+      torsoMesh.castShadow = true;
+      playerBodyRig.add(torsoMesh);
+
+      const apronMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.335, 0.39, 0.56, 12), MAT.gamchaRed);
+      apronMesh.position.y = 0.78;
+      playerBodyRig.add(apronMesh);
+
+      const armGeo = new THREE.CapsuleGeometry(0.1, 0.36, 4, 8);
+      const leftArm = new THREE.Mesh(armGeo, MAT.skinTone);
+      leftArm.position.set(-0.42, 0.98, 0.12);
+      leftArm.rotation.z = 0.35;
+      leftArm.rotation.x = -0.45;
+
+      const rightArm = new THREE.Mesh(armGeo, MAT.skinTone);
+      rightArm.position.set(0.42, 0.98, 0.12);
+      rightArm.rotation.z = -0.35;
+      rightArm.rotation.x = -0.45;
+      playerBodyRig.add(leftArm, rightArm);
+
+      const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.36, 14, 12), MAT.skinTone);
+      headMesh.position.y = 1.52;
+      headMesh.castShadow = true;
+      playerBodyRig.add(headMesh);
+
+      const eyeGeo = new THREE.SphereGeometry(0.048, 6, 6);
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x140a04 });
+      const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+      leftEye.position.set(-0.13, 1.56, 0.32);
+      const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+      rightEye.position.set(0.13, 1.56, 0.32);
+      playerBodyRig.add(leftEye, rightEye);
+
+      const capDome = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 0.22, 12), MAT.capWhite);
+      capDome.position.y = 1.84;
+      const capVisor = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.05, 0.28), MAT.gamchaRed);
+      capVisor.position.set(0, 1.76, 0.26);
+      playerBodyRig.add(capDome, capVisor);
+
+      const headTray = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.4, 0.06, 16), MAT.brassPBR);
+      headTray.position.y = 1.98;
+      playerBodyRig.add(headTray);
+
+      const headStackGroup = new THREE.Group();
+      headStackGroup.position.set(0, 2.01, 0);
+      playerBodyRig.add(headStackGroup);
+
+      // Pre-allocate 25 head stack cups at startup
+      const playerHeadCups = [];
+      for (let i = 0; i < 25; i++) {
+        const cup = create3DChaiCup();
+        cup.position.set(0, i * 0.31, 0);
+        cup.visible = false;
+        headStackGroup.add(cup);
+        playerHeadCups.push(cup);
+      }
+
+      function syncPlayerHeadStackMeshes(count) {
+        while (playerHeadCups.length < count) {
+          const idx = playerHeadCups.length;
+          const cup = create3DChaiCup();
+          cup.position.set(0, idx * 0.31, 0);
+          headStackGroup.add(cup);
+          playerHeadCups.push(cup);
+        }
+        for (let i = 0; i < playerHeadCups.length; i++) {
+          playerHeadCups[i].visible = i < count;
+        }
+      }
+
+      const moveTargetRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.35, 0.48, 20),
+        new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide })
+      );
+      moveTargetRing.rotation.x = -Math.PI / 2;
+      moveTargetRing.position.y = 0.04;
+      moveTargetRing.visible = false;
+      worldGroup.add(moveTargetRing);
+
+      // ==========================================
+      // 9. 3D AUTO-RICKSHAW ON THE ROAD
+      // ==========================================
+      const rickshawGroup = new THREE.Group();
+      rickshawGroup.position.set(-14, 0.05, -6.8);
+      worldGroup.add(rickshawGroup);
+
+      const rickBodyMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.45 });
+      const rickCanopyMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.45 });
+      const tireMat = new THREE.MeshLambertMaterial({ color: 0x1c1917 });
+
+      const rChassis = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.85, 1.35), rickBodyMat);
+      rChassis.position.y = 0.65;
+      rChassis.castShadow = true;
+      rickshawGroup.add(rChassis);
+
+      const rNose = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 0.85, 10), rickBodyMat);
+      rNose.position.set(1.2, 0.65, 0);
+      rickshawGroup.add(rNose);
+
+      const rCanopy = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.75, 1.38), rickCanopyMat);
+      rCanopy.position.set(-0.05, 1.45, 0);
+      rCanopy.castShadow = true;
+      rickshawGroup.add(rCanopy);
+
+      const rRoofCap = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.15, 1.44), rickCanopyMat);
+      rRoofCap.position.set(0, 1.85, 0);
+      rickshawGroup.add(rRoofCap);
+
+      const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 10);
+      wheelGeo.rotateX(Math.PI / 2);
+      const wFront = new THREE.Mesh(wheelGeo, tireMat);
+      wFront.position.set(1.3, 0.3, 0);
+      const wBackL = new THREE.Mesh(wheelGeo, tireMat);
+      wBackL.position.set(-0.8, 0.3, 0.68);
+      const wBackR = new THREE.Mesh(wheelGeo, tireMat);
+      wBackR.position.set(-0.8, 0.3, -0.68);
+      rickshawGroup.add(wFront, wBackL, wBackR);
+
+      const rLight = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xfef08a })
+      );
+      rLight.position.set(1.58, 0.68, 0);
+      rickshawGroup.add(rLight);
+
+      // ==========================================
+      // 10. 3 TABLES, MONSOON UMBRELLAS & PRE-POOLED 3D CUSTOMERS
+      // ==========================================
+      const OUTFIT_COLORS = [0x2563eb, 0xd97706, 0x9333ea, 0x059669, 0xe11d48, 0x0284c7];
+      const TURBAN_COLORS = [0xf97316, 0xef4444, 0xfacc15, 0x1e293b, 0x7c3aed];
+      const UMBRELLA_COLORS = [0xe11d48, 0x0284c7, 0xd97706];
+
+      // Shared Customer Geometries (Zero Allocation on Customer Spawn)
+      const custTorsoGeo = new THREE.CylinderGeometry(0.3, 0.36, 0.75, 10);
+      const custThighGeo = new THREE.BoxGeometry(0.18, 0.18, 0.45);
+      const custArmGeo = new THREE.BoxGeometry(0.15, 0.42, 0.15);
+      const custHeadGeo = new THREE.DodecahedronGeometry(0.32, 1);
+      const custEyeGeo = new THREE.SphereGeometry(0.042, 6, 6);
+      const custTurbanGeo = new THREE.SphereGeometry(0.33, 10, 8);
+      const custAngerRingGeo = new THREE.RingGeometry(0.65, 0.85, 20);
+      custAngerRingGeo.rotateX(-Math.PI / 2);
+      const custAngerRingMat = new THREE.MeshBasicMaterial({ color: 0xdc2626, side: THREE.DoubleSide });
+
+      const TABLES = [
+        { id: 0, label: 'Table 1', pos: new THREE.Vector3(0.8, 0, -1.5), customer: null, spawnTimer: 0.2 },
+        { id: 1, label: 'Table 2', pos: new THREE.Vector3(6.2, 0, -1.5), customer: null, spawnTimer: 0.8 },
+        { id: 2, label: 'Table 3', pos: new THREE.Vector3(3.5, 0, 3.3), customer: null, spawnTimer: 1.8 }
+      ];
+
+      function buildReusableCustomerRig() {
+        const group = new THREE.Group();
+        group.visible = false;
+
+        const outfitMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.65 });
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xc67d43, roughness: 0.62 });
+        const headGearMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.6 });
+
+        const torso = new THREE.Mesh(custTorsoGeo, outfitMat);
+        torso.position.y = 0.92;
+        torso.castShadow = true;
+        group.add(torso);
+
+        const thighL = new THREE.Mesh(custThighGeo, MAT.pantsDark);
+        thighL.position.set(-0.15, 0.56, 0.2);
+        const thighR = new THREE.Mesh(custThighGeo, MAT.pantsDark);
+        thighR.position.set(0.15, 0.56, 0.2);
+        group.add(thighL, thighR);
+
+        const armL = new THREE.Mesh(custArmGeo, outfitMat);
+        armL.position.set(-0.38, 0.9, 0.15);
+        armL.rotation.x = -0.6;
+        const armR = new THREE.Mesh(custArmGeo, outfitMat);
+        armR.position.set(0.38, 0.9, 0.15);
+        armR.rotation.x = -0.6;
+        group.add(armL, armR);
+
+        const head = new THREE.Mesh(custHeadGeo, skinMat);
+        head.position.y = 1.52;
+        head.castShadow = true;
+        group.add(head);
+
+        const eyeL = new THREE.Mesh(custEyeGeo, eyeMat);
+        eyeL.position.set(-0.11, 1.55, 0.28);
+        const eyeR = new THREE.Mesh(custEyeGeo, eyeMat);
+        eyeR.position.set(0.11, 1.55, 0.28);
+        group.add(eyeL, eyeR);
+
+        const turban = new THREE.Mesh(custTurbanGeo, headGearMat);
+        turban.scale.set(1.05, 0.65, 1.05);
+        turban.position.set(0, 1.74, -0.02);
+        group.add(turban);
+
+        const angerRing = new THREE.Mesh(custAngerRingGeo, custAngerRingMat);
+        angerRing.position.set(0, 0.04, 0);
+        angerRing.visible = false;
+        group.add(angerRing);
+
+        group.userData = {
+          outfitMat,
+          skinMat,
+          headGearMat,
+          torso,
+          head,
+          armL,
+          armR,
+          turban,
+          angerRing
+        };
+
+        return group;
+      }
+
+      const tableShadowGeo = new THREE.CircleGeometry(1.35, 20);
+      const tablePedGeo = new THREE.CylinderGeometry(0.18, 0.26, 0.95, 10);
+      const tableTopGeo = new THREE.CylinderGeometry(1.18, 1.12, 0.14, 20);
+      const tableRimGeo = new THREE.TorusGeometry(1.16, 0.035, 6, 22);
+      const stoolSeatGeo = new THREE.CylinderGeometry(0.42, 0.38, 0.1, 12);
+      const stoolLegGeo = new THREE.CylinderGeometry(0.14, 0.22, 0.5, 8);
+      const uPoleGeo = new THREE.CylinderGeometry(0.045, 0.045, 2.2, 6);
+      const uCanopyGeo = new THREE.ConeGeometry(1.65, 0.65, 10);
+      const hitProxyGeo = new THREE.CylinderGeometry(1.5, 1.5, 2.6, 10);
+      const hitProxyMat = new THREE.MeshBasicMaterial({ visible: false });
+
+      TABLES.forEach((table, idx) => {
+        const tGroup = new THREE.Group();
+        tGroup.position.copy(table.pos);
+        worldGroup.add(tGroup);
+        table.group = tGroup;
+
+        const tShadow = new THREE.Mesh(tableShadowGeo, shadowDiscMat);
+        tShadow.rotation.x = -Math.PI / 2;
+        tShadow.position.y = 0.02;
+        tGroup.add(tShadow);
+
+        const ped = new THREE.Mesh(tablePedGeo, MAT.woodDark);
+        ped.position.y = 0.475;
+        tGroup.add(ped);
+
+        const topMesh = new THREE.Mesh(tableTopGeo, MAT.woodWarm);
+        topMesh.position.y = 0.98;
+        topMesh.castShadow = true;
+        topMesh.receiveShadow = true;
+        topMesh.userData.clickableType = 'table';
+        topMesh.userData.tableId = table.id;
+        tGroup.add(topMesh);
+        clickableMeshes.push(topMesh);
+
+        const rimTorus = new THREE.Mesh(tableRimGeo, MAT.brassPBR);
+        rimTorus.rotation.x = Math.PI / 2;
+        rimTorus.position.y = 1.01;
+        tGroup.add(rimTorus);
+
+        const stoolSeat = new THREE.Mesh(stoolSeatGeo, MAT.woodCounter);
+        stoolSeat.position.set(0, 0.52, -1.25);
+        const stoolLeg = new THREE.Mesh(stoolLegGeo, MAT.woodDark);
+        stoolLeg.position.set(0, 0.25, -1.25);
+        tGroup.add(stoolSeat, stoolLeg);
+
+        // Pop-up Monsoon Table Umbrella
+        const umbrellaGroup = new THREE.Group();
+        umbrellaGroup.position.set(0, 1.0, 0);
+        umbrellaGroup.scale.setScalar(0.001);
+        umbrellaGroup.visible = false;
+        const uPole = new THREE.Mesh(uPoleGeo, MAT.woodDark);
+        uPole.position.y = 1.1;
+        const uCanopy = new THREE.Mesh(
+          uCanopyGeo,
+          new THREE.MeshStandardMaterial({ color: UMBRELLA_COLORS[idx % UMBRELLA_COLORS.length], roughness: 0.55 })
+        );
+        uCanopy.position.y = 2.25;
+        uCanopy.castShadow = true;
+        umbrellaGroup.add(uPole, uCanopy);
+        tGroup.add(umbrellaGroup);
+        table.umbrellaGroup = umbrellaGroup;
+
+        const hitProxy = new THREE.Mesh(hitProxyGeo, hitProxyMat);
+        hitProxy.position.set(0, 1.3, -0.4);
+        hitProxy.userData.clickableType = 'table';
+        hitProxy.userData.tableId = table.id;
+        tGroup.add(hitProxy);
+        clickableMeshes.push(hitProxy);
+
+        const customerAnchor = new THREE.Group();
+        customerAnchor.position.set(0, 0, -1.25);
+        tGroup.add(customerAnchor);
+        table.customerAnchor = customerAnchor;
+
+        // Pre-build reusable 3D customer rig for this table
+        const customerRig = buildReusableCustomerRig();
+        customerAnchor.add(customerRig);
+        table.customerRig = customerRig;
+
+        const bubbleEl = document.createElement('div');
+        bubbleEl.className = 'demand-bubble';
+        bubbleEl.style.display = 'none';
+        bubbleEl.innerHTML = `
+          <div class="demand-top">
+            <span class="demand-cups">☕ × 3</span>
+            <span class="demand-price">$30</span>
+          </div>
+          <div class="demand-weather-tag">🌧️ Monsoon Chai Craving!</div>
+          <div class="demand-bar-bg">
+            <div class="demand-bar-fill"></div>
+          </div>
+          <div class="demand-tap-hint">TAP TO SERVE</div>
+        `;
+        bubbleEl.addEventListener('pointerdown', (ev) => {
+          ev.stopPropagation();
+          if (state.mode !== 'PLAYING') return;
+          Sound.init();
+          handleTableClick(table);
+        });
+        worldUiLayer.appendChild(bubbleEl);
+        table.bubbleEl = bubbleEl;
+        table.bubbleCupsEl = bubbleEl.querySelector('.demand-cups');
+        table.bubblePriceEl = bubbleEl.querySelector('.demand-price');
+        table.bubbleBarEl = bubbleEl.querySelector('.demand-bar-fill');
+        table.bubbleTagEl = bubbleEl.querySelector('.demand-weather-tag');
+        table.lastBarRatio = 1;
+      });
+
+      // ==========================================
+      // 11. 3D STAFF ACTORS ("CHOTU" HELPERS)
+      // ==========================================
+      const staffShadowGeo = new THREE.CircleGeometry(0.5, 14);
+      const staffTorsoGeo = new THREE.CylinderGeometry(0.26, 0.32, 0.68, 10);
+      const staffHeadGeo = new THREE.SphereGeometry(0.28, 12, 10);
+      const staffCapGeo = new THREE.CylinderGeometry(0.22, 0.28, 0.16, 10);
+
+      function create3DStaffActor(idx) {
+        const group = new THREE.Group();
+        const homeX = -2.8 + (idx % 2) * 1.4;
+        const homeZ = 2.8 + Math.floor(idx / 2) * 1.3;
+        group.position.set(homeX, 0, homeZ);
+
+        const sShadow = new THREE.Mesh(staffShadowGeo, shadowDiscMat);
+        sShadow.rotation.x = -Math.PI / 2;
+        sShadow.position.y = 0.02;
+        group.add(sShadow);
+
+        const torso = new THREE.Mesh(staffTorsoGeo, MAT.staffGreen);
+        torso.position.y = 0.65;
+        torso.castShadow = true;
+        group.add(torso);
+
+        const head = new THREE.Mesh(staffHeadGeo, MAT.skinTone);
+        head.position.y = 1.24;
+        group.add(head);
+
+        const cap = new THREE.Mesh(staffCapGeo, MAT.marigoldYellow);
+        cap.position.y = 1.48;
+        group.add(cap);
+
+        const heldCup = create3DChaiCup();
+        heldCup.position.set(0.32, 0.85, 0.25);
+        group.add(heldCup);
+
+        worldGroup.add(group);
+        return {
+          mesh: group,
+          homeX,
+          homeZ,
+          walkCycle: idx * 1.7
+        };
+      }
+
+      // ==========================================
+      // 12. PRE-ALLOCATED POOLS (STEAM, FLYING CUPS, FLOATING TEXTS)
+      // ==========================================
+      // 12A. Pooled 3D Steam Puffs (Zero runtime material clone/dispose)
+      const MAX_STEAM_PUFFS = 28;
+      const steamGeo = new THREE.SphereGeometry(0.16, 8, 6);
+      const steamPool = [];
+      for (let i = 0; i < MAX_STEAM_PUFFS; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0xfff8eb,
+          transparent: true,
+          opacity: 0.6,
+          depthWrite: false
+        });
+        const mesh = new THREE.Mesh(steamGeo, mat);
+        mesh.visible = false;
+        worldGroup.add(mesh);
+        steamPool.push({
+          mesh,
+          mat,
+          active: false,
+          vx: 0,
+          vy: 0,
+          vz: 0,
+          life: 0,
+          maxLife: 0.8,
+          baseScale: 1
+        });
+      }
+
+      function spawnSteamPuff(x, y, z, scale = 1, count = 1) {
+        let spawned = 0;
+        for (let i = 0; i < MAX_STEAM_PUFFS && spawned < count; i++) {
+          const sp = steamPool[i];
+          if (!sp.active) {
+            sp.active = true;
+            sp.life = 0.8;
+            sp.maxLife = 0.8;
+            sp.vx = (Math.random() - 0.5) * 0.4;
+            sp.vy = 1.2 + Math.random() * 0.8;
+            sp.vz = (Math.random() - 0.5) * 0.4;
+            sp.baseScale = (0.6 + Math.random() * 0.5) * scale;
+            sp.mesh.position.set(
+              x + (Math.random() - 0.5) * 0.28,
+              y + Math.random() * 0.18,
+              z + (Math.random() - 0.5) * 0.28
+            );
+            sp.mesh.scale.setScalar(sp.baseScale);
+            sp.mat.opacity = 0.58;
+            sp.mesh.visible = true;
+            spawned++;
+          }
+        }
+      }
+
+      // 12B. Pooled 3D Flying Chai Cups (Zero runtime mesh creation)
+      const MAX_FLYING_CUPS = 18;
+      const flyingCupPool = [];
+      for (let i = 0; i < MAX_FLYING_CUPS; i++) {
+        const cupMesh = create3DChaiCup();
+        cupMesh.visible = false;
+        worldGroup.add(cupMesh);
+        flyingCupPool.push({
+          mesh: cupMesh,
+          active: false,
+          from: new THREE.Vector3(),
+          to: new THREE.Vector3(),
+          progress: 0,
+          duration: 0.25
+        });
+      }
+
+      function spawnFlying3DCup(fromVec, toVec, delay = 0) {
+        for (let i = 0; i < MAX_FLYING_CUPS; i++) {
+          const fc = flyingCupPool[i];
+          if (!fc.active) {
+            fc.active = true;
+            fc.from.copy(fromVec);
+            fc.to.copy(toVec);
+            fc.progress = -delay;
+            fc.duration = 0.25;
+            fc.mesh.position.copy(fromVec);
+            fc.mesh.visible = delay <= 0;
+            return;
+          }
+        }
+      }
+
+      // 12C. Pooled Floating DOM Texts (Zero runtime DOM createElement/remove)
+      const MAX_FLOATING_TEXTS = 14;
+      const floatingTextPool = [];
+      for (let i = 0; i < MAX_FLOATING_TEXTS; i++) {
+        const el = document.createElement('div');
+        el.className = 'floating-text';
+        worldUiLayer.appendChild(el);
+        floatingTextPool.push({
+          el,
+          active: false,
+          wx: 0,
+          wy: 0,
+          wz: 0,
+          vy: 2.2,
+          life: 0,
+          maxLife: 1.1
+        });
+      }
+
+      function addFloatingWorldText(worldX, worldY, worldZ, text, color = '#4ade80', size = 24) {
+        for (let i = 0; i < MAX_FLOATING_TEXTS; i++) {
+          const ft = floatingTextPool[i];
+          if (!ft.active) {
+            ft.active = true;
+            ft.wx = worldX;
+            ft.wy = worldY;
+            ft.wz = worldZ;
+            ft.vy = 2.1;
+            ft.life = 1.1;
+            ft.maxLife = 1.1;
+            ft.el.textContent = text;
+            ft.el.style.color = color;
+            ft.el.style.fontSize = `${size}px`;
+            ft.el.style.opacity = '1';
+            ft.el.style.display = 'block';
+            return;
+          }
+        }
+      }
+
+      // ==========================================
+      // 13. GAME STATE & CORE LOGIC (STARTS IMMEDIATELY IN PLAYING MODE!)
+      // ==========================================
+      const STORAGE_KEY = 'chai_please_tapri_tycoon_v1';
+
+      const state = {
+        mode: 'PLAYING',
+        money: 50,
+        maxStack: 5,
+        staffCount: 0,
+        staffTimer: 0,
+        servedCount: 0,
+        walkoutCount: 0,
+        pendingOfflineReward: 0,
+        worldTime: 0,
+        shakeTime: 0,
+        shakeMag: 0,
+
+        weatherId: 'SUNNY',
+        weatherTimer: 28,
+        lightningFlash: 0,
+
+        player: {
+          x: -1.8,
+          z: 1.2,
+          vx: 0,
+          vz: 0,
+          speed: 7.6,
+          chai: 2,
+          brewCooldown: 0,
+          maxStackFlash: 0,
+          walkCycle: 0,
+          stackSwayX: 0,
+          stackSwayZ: 0,
+          targetX: null,
+          targetZ: null,
+          targetTableId: null,
+          targetBrew: false
+        },
+
+        staffActors: []
+      };
+
+      function triggerCameraShake(mag = 0.3, duration = 0.2) {
+        state.shakeMag = mag;
+        state.shakeTime = duration;
+      }
+
+      // HUD References
+      const elMoney = document.getElementById('hud-money');
+      const elStack = document.getElementById('hud-stack');
+      const elStaff = document.getElementById('hud-staff');
+      const elServed = document.getElementById('hud-served');
+      const elMoneyCard = document.getElementById('money-card');
+      const elStackCard = document.getElementById('stack-card');
+      const btnBrew = document.getElementById('btn-brew');
+      const btnHireStaff = document.getElementById('btn-hire-staff');
+      const btnUpgradeStack = document.getElementById('btn-upgrade-stack');
+      const elStackSub = document.getElementById('stack-sub-label');
+      const elBrewSub = document.getElementById('brew-sub');
+      const elWeatherCard = document.getElementById('weather-card');
+      const elWeatherIcon = document.getElementById('weather-icon');
+      const elWeatherTitle = document.getElementById('hud-weather');
+      const elWeatherSub = document.getElementById('hud-weather-sub');
+
+      // Non-reflowing pulse helper (no offsetWidth read!)
+      function pulseCard(el) {
+        el.classList.add('pop');
+        if (el._popTimer) clearTimeout(el._popTimer);
+        el._popTimer = setTimeout(() => {
+          el.classList.remove('pop');
+        }, 140);
+      }
+
+      function updateHUD() {
+        elMoney.textContent = `$${state.money}`;
+        elStack.textContent = `${state.player.chai} / ${state.maxStack}`;
+        elStaff.textContent = `${state.staffCount} · ${state.staffCount}/3s`;
+        elServed.textContent = `${state.servedCount} · ${state.walkoutCount}`;
+
+        if (state.player.chai >= state.maxStack) {
+          elBrewSub.textContent = '3D Head Stack FULL! Tap customer to serve';
+        } else {
+          elBrewSub.textContent = `Carrying ${state.player.chai}/${state.maxStack} Chai · SPACE or Tap`;
+        }
+
+        const canHire = state.money >= 100;
+        btnHireStaff.disabled = !canHire;
+        btnHireStaff.classList.toggle('affordable-staff', canHire);
+
+        const canUpgrade = state.money >= 200;
+        btnUpgradeStack.disabled = !canUpgrade;
+        btnUpgradeStack.classList.toggle('affordable-stack', canUpgrade);
+        elStackSub.textContent = `Max Head Stack +2 (${state.maxStack} → ${state.maxStack + 2})`;
+      }
+
+      // Weather Switching Logic
+      function setWeather(nextId, announce = true) {
+        const wCfg = WEATHER_TYPES[nextId] || WEATHER_TYPES.SUNNY;
+        state.weatherId = wCfg.id;
+        state.weatherTimer = 30 + Math.random() * 8;
+
+        elWeatherIcon.textContent = wCfg.icon;
+        elWeatherTitle.textContent = wCfg.label;
+        elWeatherSub.textContent = wCfg.sub;
+        elWeatherCard.classList.toggle('rain-active', wCfg.id !== 'SUNNY');
+        pulseCard(elWeatherCard);
+
+        targetBgColor.setHex(wCfg.bgColor);
+
+        if (wCfg.rainCount > 0) {
+          rainSystem.visible = true;
+          rainGeo.setDrawRange(0, wCfg.rainCount * 2);
+          rainMat.opacity = 0.72;
+        } else {
+          rainSystem.visible = false;
+        }
+
+        // Boost seated customers' chai demand by +1 if rain/fog starts!
+        if (wCfg.id !== 'SUNNY') {
+          for (const table of TABLES) {
+            if (table.customer && table.customer.demand < 5) {
+              table.customer.demand = Math.min(5, table.customer.demand + 1);
+              table.customer.originalDemand = Math.max(table.customer.originalDemand, table.customer.demand);
+              table.bubbleCupsEl.textContent = `☕ × ${table.customer.demand}`;
+              table.bubblePriceEl.textContent = `$${table.customer.originalDemand * 10}`;
+              table.bubbleEl.classList.add('monsoon-boost');
+              table.bubbleTagEl.textContent =
+                wCfg.id === 'RAIN' ? '🌧️ Rain Craving (+Chai!)' : '🌫️ Fog Craving (+Chai!)';
+            }
+          }
+        } else {
+          for (const table of TABLES) {
+            table.bubbleEl.classList.remove('monsoon-boost');
+          }
+        }
+
+        if (announce && state.mode === 'PLAYING') {
+          Sound.weatherShift(wCfg.id !== 'SUNNY');
+          const msg =
+            wCfg.id === 'RAIN'
+              ? '🌧️ Rain (600 drops)! High Hot Chai Demand (3–5)!'
+              : wCfg.id === 'FOG'
+              ? '🌫️ Chilly Fog! Customers Crave Extra Hot Chai!'
+              : '☀️ Sunny Skies Returned! Fast Customer Arrivals!';
+          const col = wCfg.id === 'SUNNY' ? '#fde047' : '#38bdf8';
+          addFloatingWorldText(0.8, 3.6, 0, msg, col, 21);
+        }
+      }
+
+      function cycleWeather() {
+        const curIdx = WEATHER_ORDER.indexOf(state.weatherId);
+        const nextId = WEATHER_ORDER[(curIdx + 1) % WEATHER_ORDER.length];
+        setWeather(nextId, true);
+      }
+
+      // Debounced Non-Blocking Persistence
+      let saveTimeoutId = null;
+      function saveProgress() {
+        if (saveTimeoutId) return;
+        saveTimeoutId = setTimeout(() => {
+          saveTimeoutId = null;
+          try {
+            localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify({
+                money: state.money,
+                maxStack: state.maxStack,
+                staffCount: state.staffCount,
+                servedCount: state.servedCount,
+                walkoutCount: state.walkoutCount,
+                lastTimestamp: Date.now()
+              })
+            );
+          } catch (e) {}
+        }, 1200);
+      }
+
+      function syncStaffMeshes() {
+        while (state.staffActors.length < state.staffCount) {
+          state.staffActors.push(create3DStaffActor(state.staffActors.length));
+        }
+      }
+
+      function loadProgress() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return null;
+          const data = JSON.parse(raw);
+          if (typeof data.money === 'number') state.money = Math.max(0, Math.floor(data.money));
+          if (typeof data.maxStack === 'number') state.maxStack = Math.max(5, Math.floor(data.maxStack));
+          if (typeof data.staffCount === 'number') state.staffCount = Math.max(0, Math.floor(data.staffCount));
+          if (typeof data.servedCount === 'number') state.servedCount = Math.max(0, Math.floor(data.servedCount));
+          if (typeof data.walkoutCount === 'number') state.walkoutCount = Math.max(0, Math.floor(data.walkoutCount));
+          syncStaffMeshes();
+
+          if (data.lastTimestamp) {
+            const elapsedSec = Math.floor((Date.now() - data.lastTimestamp) / 1000);
+            if (elapsedSec >= 30) return elapsedSec;
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      function triggerOfflinePopup(secondsAway) {
+        const cappedSec = Math.min(secondsAway, 3600 * 8);
+        const ratePerMin = 20 + state.staffCount * 35 + Math.floor((state.maxStack - 5) * 5);
+        const earned = Math.max(20, Math.round(((cappedSec / 60) * ratePerMin) / 10) * 10);
+        const cups = Math.max(2, Math.round(earned / 10));
+
+        state.pendingOfflineReward = earned;
+        const mins = Math.floor(cappedSec / 60);
+        const secs = cappedSec % 60;
+        const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+        document.getElementById('offline-time-text').textContent =
+          `You were away for ${timeStr} — your 3D Tapri stayed busy!`;
+        document.getElementById('offline-cups-text').textContent =
+          `${cups} Cutting Chai Served Offline`;
+        document.getElementById('offline-money-text').textContent = `+$${earned}`;
+
+        document.getElementById('offline-modal').classList.remove('hidden');
+        state.mode = 'OFFLINE_MODAL';
+        Sound.upgrade();
+      }
+
+      // ==========================================
+      // 14. BREWING, SERVING & ANGRY SYSTEM (ZERO ALLOCATIONS)
+      // ==========================================
+      function brewOneChai(fromManualTrigger = false) {
+        const p = state.player;
+        if (p.chai >= state.maxStack) {
+          if (fromManualTrigger && p.maxStackFlash <= 0) {
+            p.maxStackFlash = 0.5;
+            Sound.maxStackFull();
+            addFloatingWorldText(p.x, 2.8 + p.chai * 0.3, p.z, 'MAX STACK!', '#fbbf24', 19);
+          }
+          return false;
+        }
+
+        p.chai += 1;
+        p.brewCooldown = 0.25;
+        syncPlayerHeadStackMeshes(p.chai);
+        Sound.brew(p.chai, state.maxStack);
+
+        spawnSteamPuff(MACHINE_POS.x + 0.3, 2.7, MACHINE_POS.z - 0.55, 1.35, 3);
+        _brewStartVec.set(MACHINE_POS.x + 0.3, 2.5, MACHINE_POS.z - 0.55);
+        _brewEndVec.set(p.x, 2.0 + p.chai * 0.31, p.z);
+        spawnFlying3DCup(_brewStartVec, _brewEndVec, 0);
+
+        pulseCard(elStackCard);
+        updateHUD();
+        return true;
+      }
+
+      function spawnCustomerAtTable(table) {
+        const outfitHex = OUTFIT_COLORS[Math.floor(Math.random() * OUTFIT_COLORS.length)];
+        const turbanHex = TURBAN_COLORS[Math.floor(Math.random() * TURBAN_COLORS.length)];
+
+        // Reuse pre-built 3D Customer Rig (Zero Mesh/Material Allocations!)
+        const rig = table.customerRig;
+        const ud = rig.userData;
+        ud.outfitMat.color.setHex(outfitHex);
+        ud.headGearMat.color.setHex(turbanHex);
+        ud.torso.material = ud.outfitMat;
+        ud.armL.material = ud.outfitMat;
+        ud.armR.material = ud.outfitMat;
+        ud.head.material = ud.skinMat;
+        ud.turban.material = ud.headGearMat;
+        ud.angerRing.visible = false;
+
+        rig.position.x = 0;
+        rig.scale.setScalar(0.01);
+        rig.visible = true;
+
+        const wCfg = WEATHER_TYPES[state.weatherId] || WEATHER_TYPES.SUNNY;
+        const range = wCfg.maxDemand - wCfg.minDemand + 1;
+        const demand = wCfg.minDemand + Math.floor(Math.random() * range);
+
+        table.customer = {
+          demand,
+          originalDemand: demand,
+          waitTime: 0,
+          warnedRed: false,
+          enterScale: 0.01
+        };
+
+        table.bubbleEl.style.display = 'block';
+        table.bubbleEl.classList.remove('angry');
+        table.bubbleEl.classList.toggle('monsoon-boost', wCfg.id !== 'SUNNY');
+        if (wCfg.id !== 'SUNNY') {
+          table.bubbleTagEl.textContent =
+            wCfg.id === 'MONSOON' ? '⛈️ Monsoon Craving (+Chai!)' : '🌦️ Rain Craving (+Chai!)';
+        }
+        table.bubbleCupsEl.textContent = `☕ × ${demand}`;
+        table.bubblePriceEl.textContent = `$${demand * 10}`;
+        table.bubbleBarEl.style.transform = 'scaleX(1)';
+        table.bubbleBarEl.style.backgroundColor = '#22c55e';
+        table.lastBarRatio = 1;
+      }
+
+      function removeCustomerFromTable(table) {
+        if (table.customer) {
+          table.customerRig.visible = false;
+          table.customer = null;
+        }
+        table.bubbleEl.style.display = 'none';
+        const wCfg = WEATHER_TYPES[state.weatherId] || WEATHER_TYPES.SUNNY;
+        table.spawnTimer = (1.2 + Math.random() * 1.3) * wCfg.spawnMult;
+      }
+
+      function completeCustomerServe(table, servedByStaff = false, fromPos = null) {
+        const c = table.customer;
+        if (!c) return;
+
+        const reward = c.originalDemand * 10;
+        state.money += reward;
+        state.servedCount += 1;
+
+        const startVec = fromPos || _playerServeVec.set(state.player.x, 2.3, state.player.z);
+        _tableTargetVec.set(table.pos.x, 1.1, table.pos.z);
+
+        for (let i = 0; i < c.demand; i++) {
+          spawnFlying3DCup(startVec, _tableTargetVec, i * 0.04);
+        }
+
+        triggerCameraShake(0.24, 0.18);
+        addFloatingWorldText(
+          table.pos.x,
+          2.6,
+          table.pos.z - 0.8,
+          `+$${reward}${servedByStaff ? ' (Staff)' : ''}`,
+          '#4ade80',
+          25
+        );
+        spawnSteamPuff(table.pos.x, 1.25, table.pos.z, 1.05, 3);
+
+        Sound.serve();
+        pulseCard(elMoneyCard);
+        pulseCard(elStackCard);
+
+        removeCustomerFromTable(table);
+        updateHUD();
+        saveProgress();
+      }
+
+      function tryPlayerServeTable(table, fromDirectTap = false) {
+        const c = table.customer;
+        if (!c) return false;
+        const p = state.player;
+
+        if (p.chai <= 0) {
+          if (fromDirectTap) {
+            addFloatingWorldText(p.x, 2.6, p.z, 'Need Chai! Walking to Kettle...', '#fbbf24', 18);
+            p.targetX = BREW_ZONE_POS.x;
+            p.targetZ = BREW_ZONE_POS.z;
+            p.targetBrew = true;
+            p.targetTableId = table.id;
+          }
+          return false;
+        }
+
+        if (p.chai >= c.demand) {
+          p.chai -= c.demand;
+          syncPlayerHeadStackMeshes(p.chai);
+          completeCustomerServe(table, false);
+          return true;
+        } else {
+          const delivered = p.chai;
+          c.demand -= delivered;
+          p.chai = 0;
+          syncPlayerHeadStackMeshes(0);
+          c.waitTime = Math.max(0, c.waitTime - delivered * 1.5);
+
+          _playerServeVec.set(p.x, 2.3, p.z);
+          _tableTargetVec.set(table.pos.x, 1.1, table.pos.z);
+          for (let i = 0; i < delivered; i++) {
+            spawnFlying3DCup(_playerServeVec, _tableTargetVec, i * 0.04);
+          }
+
+          table.bubbleCupsEl.textContent = `☕ × ${c.demand}`;
+          addFloatingWorldText(table.pos.x, 2.4, table.pos.z, `${c.demand} more Chai!`, '#fde047', 18);
+          Sound.brew(2, 5);
+          pulseCard(elStackCard);
+          updateHUD();
+          return true;
+        }
+      }
+
+      function handleTableClick(table) {
+        if (table.customer) {
+          const served = tryPlayerServeTable(table, true);
+          if (served) {
+            state.player.targetX = table.pos.x - 1.35;
+            state.player.targetZ = table.pos.z + 0.6;
+          }
+        } else {
+          state.player.targetX = table.pos.x - 1.35;
+          state.player.targetZ = table.pos.z + 0.6;
+        }
+      }
+
+      function hireStaff() {
+        if (state.money < 100) return;
+        state.money -= 100;
+        state.staffCount += 1;
+        syncStaffMeshes();
+        Sound.upgrade();
+        triggerCameraShake(0.2, 0.16);
+        addFloatingWorldText(-2.8, 2.4, 2.8, 'Hired 3D Chotu! (-$100)', '#4ade80', 22);
+        pulseCard(elMoneyCard);
+        updateHUD();
+        saveProgress();
+      }
+
+      function upgradeStack() {
+        if (state.money < 200) return;
+        state.money -= 200;
+        state.maxStack += 2;
+        Sound.upgrade();
+        triggerCameraShake(0.2, 0.16);
+        addFloatingWorldText(
+          state.player.x,
+          2.8,
+          state.player.z,
+          `Max Stack ${state.maxStack}! (-$200)`,
+          '#facc15',
+          22
+        );
+        pulseCard(elStackCard);
+        updateHUD();
+        saveProgress();
+      }
+
+      // ==========================================
+      // 15. INPUT CONTROLS (JOYSTICK, KEYS, RAYCASTER)
+      // ==========================================
+      const keys = new Set();
+      const joystick = { active: false, dx: 0, dy: 0, pointerId: null, cx: 0, cy: 0, maxDist: 38 };
+
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Escape') {
+          e.preventDefault();
+          if (state.mode === 'PLAYING') openPauseModal();
+          else if (state.mode === 'PAUSED') closePauseModal();
+          return;
+        }
+
+        if (e.code === 'KeyM') {
+          toggleMute();
+          return;
+        }
+
+        if (e.code === 'KeyH') {
+          toggleBottomDock();
+          return;
+        }
+
+        if (e.code === 'KeyC') {
+          cycleWeather();
+          return;
+        }
+
+        if (state.mode === 'OFFLINE_MODAL' && (e.code === 'Enter' || e.code === 'Space')) {
+          e.preventDefault();
+          collectOfflineEarnings();
+          return;
+        }
+
+        if (state.mode === 'PAUSED' && (e.code === 'Enter' || e.code === 'Space')) {
+          e.preventDefault();
+          closePauseModal();
+          return;
+        }
+
+        if (state.mode === 'PLAYING') {
+          if (e.code === 'Space' && !e.repeat) {
+            e.preventDefault();
+            brewOneChai(true);
+          }
+          keys.add(e.code);
+        }
+      });
+
+      window.addEventListener('keyup', (e) => keys.delete(e.code));
+      window.addEventListener('blur', () => {
+        keys.clear();
+        resetJoystick();
+      });
+
+      const joyZone = document.getElementById('joystick-zone');
+      const joyKnob = document.getElementById('joystick-knob');
+
+      function updateJoystickFromPoint(clientX, clientY) {
+        let dx = clientX - joystick.cx;
+        let dy = clientY - joystick.cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > joystick.maxDist) {
+          dx = (dx / dist) * joystick.maxDist;
+          dy = (dy / dist) * joystick.maxDist;
+        }
+        joyKnob.style.transform = `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0)`;
+        joystick.dx = dx / joystick.maxDist;
+        joystick.dy = dy / joystick.maxDist;
+        state.player.targetX = null;
+        state.player.targetZ = null;
+      }
+
+      function resetJoystick() {
+        joystick.active = false;
+        joystick.dx = 0;
+        joystick.dy = 0;
+        joystick.pointerId = null;
+        joyKnob.style.transform = 'translate3d(0px, 0px, 0)';
+      }
+
+      joyZone.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        Sound.init();
+        const rect = joyZone.getBoundingClientRect();
+        joystick.cx = rect.left + rect.width * 0.5;
+        joystick.cy = rect.top + rect.height * 0.5;
+        joystick.maxDist = Math.max(24, rect.width * 0.36);
+        joystick.active = true;
+        joystick.pointerId = e.pointerId;
+        try {
+          joyZone.setPointerCapture(e.pointerId);
+        } catch (err) {}
+        updateJoystickFromPoint(e.clientX, e.clientY);
+      });
+
+      joyZone.addEventListener('pointermove', (e) => {
+        if (!joystick.active || e.pointerId !== joystick.pointerId) return;
+        updateJoystickFromPoint(e.clientX, e.clientY);
+      });
+
+      joyZone.addEventListener('pointerup', (e) => {
+        if (e.pointerId === joystick.pointerId) resetJoystick();
+      });
+      joyZone.addEventListener('pointercancel', resetJoystick);
+
+      // 3D Raycasting on WebGL Canvas
+      renderer.domElement.addEventListener('pointerdown', (e) => {
+        if (state.mode !== 'PLAYING') return;
+        Sound.init();
+
+        pointerNDC.x = (e.clientX / viewportW) * 2 - 1;
+        pointerNDC.y = -(e.clientY / viewportH) * 2 + 1;
+
+        raycaster.setFromCamera(pointerNDC, camera);
+        const hits = raycaster.intersectObjects(clickableMeshes, false);
+
+        if (hits.length > 0) {
+          const hitObj = hits[0].object;
+          if (hitObj.userData.clickableType === 'kettle') {
+            brewOneChai(true);
+            state.player.targetX = BREW_ZONE_POS.x;
+            state.player.targetZ = BREW_ZONE_POS.z;
+            return;
+          }
+          if (hitObj.userData.clickableType === 'table') {
+            const table = TABLES[hitObj.userData.tableId];
+            if (table) {
+              handleTableClick(table);
+              return;
+            }
+          }
+        }
+
+        if (raycaster.ray.intersectPlane(_groundPlane, _rayPlaneIntersect)) {
+          state.player.targetX = THREE.MathUtils.clamp(_rayPlaneIntersect.x, -4.4, 9.2);
+          state.player.targetZ = THREE.MathUtils.clamp(_rayPlaneIntersect.z, -3.6, 6.8);
+          state.player.targetTableId = null;
+          state.player.targetBrew = false;
+        }
+      });
+
+      // ==========================================
+      // 16. UI MODAL & DOCK LISTENERS
+      // ==========================================
+      function collectOfflineEarnings() {
+        if (state.pendingOfflineReward > 0) {
+          state.money += state.pendingOfflineReward;
+          addFloatingWorldText(
+            state.player.x,
+            2.9,
+            state.player.z,
+            `+$${state.pendingOfflineReward} Offline!`,
+            '#4ade80',
+            26
+          );
+          state.pendingOfflineReward = 0;
+          Sound.serve();
+          triggerCameraShake(0.24, 0.2);
+          pulseCard(elMoneyCard);
+          updateHUD();
+          saveProgress();
+        }
+        document.getElementById('offline-modal').classList.add('hidden');
+        state.mode = 'PLAYING';
+      }
+
+      function openPauseModal() {
+        state.mode = 'PAUSED';
+        document.getElementById('pause-stats-text').textContent =
+          `Cash: $${state.money} · Max Stack: ${state.maxStack} · Staff: ${state.staffCount}`;
+        document.getElementById('pause-modal').classList.remove('hidden');
+      }
+
+      function closePauseModal() {
+        document.getElementById('pause-modal').classList.add('hidden');
+        state.mode = 'PLAYING';
+      }
+
+      function toggleMute() {
+        Sound.muted = !Sound.muted;
+        document.getElementById('mute-label').textContent = Sound.muted ? '🔇 Muted' : '🔊 Sound';
+      }
+
+      const dockWrapper = document.getElementById('dock-wrapper');
+      const btnToggleDock = document.getElementById('btn-toggle-dock');
+      function toggleBottomDock() {
+        const collapsed = dockWrapper.classList.toggle('collapsed');
+        btnToggleDock.textContent = collapsed ? '▴ Show Controls (H)' : '▾ Hide Controls (H)';
+      }
+
+      document.getElementById('btn-collect-offline').addEventListener('click', collectOfflineEarnings);
+      document.getElementById('btn-help').addEventListener('click', openPauseModal);
+      document.getElementById('btn-resume-game').addEventListener('click', closePauseModal);
+      document.getElementById('btn-mute').addEventListener('click', toggleMute);
+      btnToggleDock.addEventListener('click', toggleBottomDock);
+      elWeatherCard.addEventListener('click', () => {
+        Sound.init();
+        cycleWeather();
+      });
+
+      document.getElementById('btn-sim-offline').addEventListener('click', () => {
+        Sound.init();
+        triggerOfflinePopup(900);
+      });
+
+      btnBrew.addEventListener('click', () => {
+        Sound.init();
+        brewOneChai(true);
+      });
+
+      btnHireStaff.addEventListener('click', () => {
+        Sound.init();
+        hireStaff();
+      });
+
+      btnUpgradeStack.addEventListener('click', () => {
+        Sound.init();
+        upgradeStack();
+      });
+
+      document.getElementById('btn-reset-game').addEventListener('click', () => {
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {}
+        state.money = 50;
+        state.maxStack = 5;
+        state.staffCount = 0;
+        state.staffTimer = 0;
+        state.servedCount = 0;
+        state.walkoutCount = 0;
+        state.player.chai = 2;
+        syncPlayerHeadStackMeshes(2);
+        state.staffActors.forEach((a) => worldGroup.remove(a.mesh));
+        state.staffActors = [];
+        setWeather('SUNNY', false);
+        TABLES.forEach((t, idx) => {
+          removeCustomerFromTable(t);
+          t.spawnTimer = 0.3 + idx * 0.7;
+        });
+        updateHUD();
+        closePauseModal();
+      });
+
+      document.getElementById('btn-download-html').addEventListener('click', () => {
+        const htmlContent = '<!doctype html>\n' + document.documentElement.outerHTML;
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'chai-please-tapri-tycoon-3d.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+
+      let hiddenAt = null;
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          hiddenAt = Date.now();
+          saveProgress();
+        } else if (hiddenAt && state.mode === 'PLAYING') {
+          const awaySec = Math.floor((Date.now() - hiddenAt) / 1000);
+          hiddenAt = null;
+          if (awaySec >= 15) triggerOfflinePopup(awaySec);
+        }
+      });
+
+      // ==========================================
+      // 17. 60FPS 3D SIMULATION & RENDER LOOP
+      // ==========================================
+      function updateProjectedUI() {
+        for (let i = 0; i < TABLES.length; i++) {
+          const table = TABLES[i];
+          if (!table.customer) continue;
+          _projVec.set(table.pos.x, 2.45, table.pos.z - 1.25);
+          _projVec.project(camera);
+          const sx = (_projVec.x * 0.5 + 0.5) * viewportW;
+          const sy = (-_projVec.y * 0.5 + 0.5) * viewportH;
+          table.bubbleEl.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) translate(-50%, -100%)`;
+        }
+
+        for (let i = 0; i < MAX_FLOATING_TEXTS; i++) {
+          const ft = floatingTextPool[i];
+          if (!ft.active) continue;
+          _projVec.set(ft.wx, ft.wy, ft.wz);
+          _projVec.project(camera);
+          const sx = (_projVec.x * 0.5 + 0.5) * viewportW;
+          const sy = (-_projVec.y * 0.5 + 0.5) * viewportH;
+          const alpha = Math.max(0, ft.life / ft.maxLife);
+          ft.el.style.opacity = alpha.toFixed(2);
+          ft.el.style.transform = `translate3d(${sx.toFixed(1)}px, ${sy.toFixed(1)}px, 0) translate(-50%, -50%)`;
+        }
+      }
+
+      function updateWeatherSystem(dt) {
+        const wCfg = WEATHER_TYPES[state.weatherId] || WEATHER_TYPES.SUNNY;
+
+        if (state.mode === 'PLAYING') {
+          state.weatherTimer -= dt;
+          if (state.weatherTimer <= 0) {
+            cycleWeather();
+          }
+        }
+
+        currentBgColor.lerp(targetBgColor, Math.min(1, dt * 2.5));
+        scene.fog.color.copy(currentBgColor);
+        scene.fog.density = THREE.MathUtils.damp(scene.fog.density, wCfg.fogDensity || 0.015, 3, dt);
+
+        if (wCfg.id === 'RAIN' && Math.random() < dt * 0.14) {
+          state.lightningFlash = 1.0;
+        }
+        if (state.lightningFlash > 0) {
+          state.lightningFlash = Math.max(0, state.lightningFlash - dt * 4.5);
+        }
+
+        const targetSun = wCfg.sunIntensity + state.lightningFlash * 2.0;
+        sunLight.intensity = THREE.MathUtils.damp(sunLight.intensity, targetSun, 4, dt);
+        hemiLight.intensity = THREE.MathUtils.damp(hemiLight.intensity, wCfg.hemiIntensity, 4, dt);
+
+        MAT.groundCourtyard.roughness = THREE.MathUtils.damp(
+          MAT.groundCourtyard.roughness,
+          wCfg.groundRoughness,
+          3,
+          dt
+        );
+        MAT.roadAsphalt.roughness = THREE.MathUtils.damp(
+          MAT.roadAsphalt.roughness,
+          wCfg.roadRoughness,
+          3,
+          dt
+        );
+
+        // Pop open 3D Table Umbrellas during Rain
+        const umbrellaTargetScale = wCfg.id === 'RAIN' ? 1.0 : 0.001;
+        for (let i = 0; i < TABLES.length; i++) {
+          const u = TABLES[i].umbrellaGroup;
+          if (Math.abs(u.scale.x - umbrellaTargetScale) > 0.002) {
+            const nextS = THREE.MathUtils.damp(u.scale.x, umbrellaTargetScale, 7, dt);
+            u.scale.setScalar(nextS);
+            u.visible = nextS > 0.02;
+          }
+        }
+
+        // Sway trees and marigold garland with monsoon wind
+        const wind = wCfg.windStrength;
+        for (let i = 0; i < treeGroups.length; i++) {
+          treeGroups[i].rotation.z = Math.sin(state.worldTime * (2.2 + wind * 2) + i) * 0.04 * wind;
+        }
+        for (let i = 0; i < marigoldBeads.length; i++) {
+          const b = marigoldBeads[i];
+          b.mesh.position.z = b.baseZ + Math.sin(state.worldTime * (3 + wind * 4) + b.phase) * 0.05 * wind;
+        }
+
+        // Update 3D Raindrop Streaks & Ground Splashes
+        if (wCfg.rainCount > 0) {
+          const arr = rainPosAttr.array;
+          const slantX = -0.22 * wind;
+          const slantY = -0.82;
+
+          for (let i = 0; i < wCfg.rainCount; i++) {
+            const d = rainData[i];
+            d.y -= d.speed * dt;
+            d.x += slantX * d.speed * dt * 0.35;
+
+            if (d.y <= 0.05) {
+              if (Math.random() < 0.18 && Math.abs(d.x) < 10 && Math.abs(d.z) < 7) {
+                spawnRainSplash(d.x, d.z);
+              }
+              d.y = 15 + Math.random() * 3.5;
+              d.x = (Math.random() - 0.5) * 28 + 2.0;
+              d.z = (Math.random() - 0.5) * 22;
+            }
+
+            const idx = i * 6;
+            arr[idx] = d.x;
+            arr[idx + 1] = d.y;
+            arr[idx + 2] = d.z;
+            arr[idx + 3] = d.x + slantX;
+            arr[idx + 4] = d.y + slantY;
+            arr[idx + 5] = d.z;
+          }
+          rainPosAttr.needsUpdate = true;
+        }
+
+        for (let i = 0; i < MAX_SPLASHES; i++) {
+          const sp = splashPool[i];
+          if (!sp.active) continue;
+          sp.life -= dt;
+          if (sp.life <= 0) {
+            sp.active = false;
+            sp.mesh.visible = false;
+          } else {
+            const prog = 1 - sp.life / sp.maxLife;
+            sp.mesh.scale.setScalar(0.35 + prog * 1.8);
+          }
+        }
+      }
+
+      function updateSimulation(dt) {
+        state.worldTime += dt;
+
+        // 1. Update Dynamic Weather & Monsoon Particles
+        updateWeatherSystem(dt);
+
+        // 2. Animate Passing 3D Auto-Rickshaw on Back Road
+        rickshawGroup.position.x += 5.2 * dt;
+        rickshawGroup.position.y = 0.05 + Math.abs(Math.sin(state.worldTime * 18)) * 0.03;
+        if (rickshawGroup.position.x > 18) {
+          rickshawGroup.position.x = -18;
+        }
+
+        // 3. Ambient Kettle Steam Particles (Pooled)
+        if (Math.random() < dt * 6) {
+          spawnSteamPuff(MACHINE_POS.x + 0.55, 2.45, MACHINE_POS.z - 0.55, 0.85, 1);
+        }
+
+        for (let i = 0; i < MAX_STEAM_PUFFS; i++) {
+          const sp = steamPool[i];
+          if (!sp.active) continue;
+          sp.life -= dt;
+          if (sp.life <= 0) {
+            sp.active = false;
+            sp.mesh.visible = false;
+          } else {
+            sp.mesh.position.x += sp.vx * dt;
+            sp.mesh.position.y += sp.vy * dt;
+            sp.mesh.position.z += sp.vz * dt;
+            const ratio = sp.life / sp.maxLife;
+            sp.mat.opacity = ratio * 0.55;
+            sp.mesh.scale.setScalar(sp.baseScale * (1 + (1 - ratio) * 1.3));
+          }
+        }
+
+        // Update Pooled 3D Flying Chai Cups
+        for (let i = 0; i < MAX_FLYING_CUPS; i++) {
+          const fc = flyingCupPool[i];
+          if (!fc.active) continue;
+          fc.progress += dt / fc.duration;
+          if (fc.progress < 0) continue;
+          if (fc.progress >= 1) {
+            fc.active = false;
+            fc.mesh.visible = false;
+          } else {
+            fc.mesh.visible = true;
+            fc.mesh.position.lerpVectors(fc.from, fc.to, fc.progress);
+            fc.mesh.position.y += Math.sin(fc.progress * Math.PI) * 1.85;
+            fc.mesh.rotation.y += dt * 8;
+          }
+        }
+
+        // Update Pooled Floating DOM Texts
+        for (let i = 0; i < MAX_FLOATING_TEXTS; i++) {
+          const ft = floatingTextPool[i];
+          if (!ft.active) continue;
+          ft.wy += ft.vy * dt;
+          ft.life -= dt;
+          if (ft.life <= 0) {
+            ft.active = false;
+            ft.el.style.display = 'none';
+          }
+        }
+
+        // Pulse Brew Ring
+        const ringScale = 1 + Math.sin(state.worldTime * 4.5) * 0.06;
+        brewRingOuter.scale.setScalar(ringScale);
+
+        if (state.mode !== 'PLAYING') return;
+
+        // 4. 3D Player Movement & Kinematics
+        const p = state.player;
+        if (p.brewCooldown > 0) p.brewCooldown = Math.max(0, p.brewCooldown - dt);
+        if (p.maxStackFlash > 0) p.maxStackFlash = Math.max(0, p.maxStackFlash - dt);
+
+        let moveX = 0;
+        let moveZ = 0;
+        if (keys.has('KeyW') || keys.has('ArrowUp')) moveZ -= 1;
+        if (keys.has('KeyS') || keys.has('ArrowDown')) moveZ += 1;
+        if (keys.has('KeyA') || keys.has('ArrowLeft')) moveX -= 1;
+        if (keys.has('KeyD') || keys.has('ArrowRight')) moveX += 1;
+
+        if (joystick.active && (Math.abs(joystick.dx) > 0.05 || Math.abs(joystick.dy) > 0.05)) {
+          moveX = joystick.dx;
+          moveZ = joystick.dy;
+        } else if (moveX !== 0 || moveZ !== 0) {
+          const len = Math.hypot(moveX, moveZ);
+          moveX /= len;
+          moveZ /= len;
+          p.targetX = null;
+          p.targetZ = null;
+        } else if (p.targetX !== null && p.targetZ !== null) {
+          const dx = p.targetX - p.x;
+          const dz = p.targetZ - p.z;
+          const dist = Math.hypot(dx, dz);
+          if (dist > 0.22) {
+            moveX = dx / dist;
+            moveZ = dz / dist;
+            moveTargetRing.visible = true;
+            moveTargetRing.position.set(p.targetX, 0.04, p.targetZ);
+          } else {
+            p.targetX = null;
+            p.targetZ = null;
+            moveTargetRing.visible = false;
+            if (p.targetBrew && p.chai >= state.maxStack && p.targetTableId !== null) {
+              const tbl = TABLES[p.targetTableId];
+              if (tbl) {
+                p.targetX = tbl.pos.x - 1.35;
+                p.targetZ = tbl.pos.z + 0.6;
+              }
+              p.targetBrew = false;
+            }
+          }
+        } else {
+          moveTargetRing.visible = false;
+        }
+
+        p.vx = moveX * p.speed;
+        p.vz = moveZ * p.speed;
+        p.x = THREE.MathUtils.clamp(p.x + p.vx * dt, -4.4, 9.2);
+        p.z = THREE.MathUtils.clamp(p.z + p.vz * dt, -3.6, 6.8);
+        playerGroup.position.set(p.x, 0, p.z);
+
+        const speedMag = Math.hypot(p.vx, p.vz);
+        if (speedMag > 0.2) {
+          const targetAngle = Math.atan2(p.vx, p.vz);
+          const diff = Math.atan2(
+            Math.sin(targetAngle - playerBodyRig.rotation.y),
+            Math.cos(targetAngle - playerBodyRig.rotation.y)
+          );
+          playerBodyRig.rotation.y += diff * Math.min(1, dt * 14);
+
+          p.walkCycle += dt * 13;
+          leftLeg.rotation.x = Math.sin(p.walkCycle) * 0.55;
+          rightLeg.rotation.x = -Math.sin(p.walkCycle) * 0.55;
+          playerBodyRig.position.y = Math.abs(Math.sin(p.walkCycle)) * 0.09;
+        } else {
+          leftLeg.rotation.x = THREE.MathUtils.damp(leftLeg.rotation.x, 0, 10, dt);
+          rightLeg.rotation.x = THREE.MathUtils.damp(rightLeg.rotation.x, 0, 10, dt);
+          playerBodyRig.position.y = THREE.MathUtils.damp(playerBodyRig.position.y, 0, 10, dt);
+        }
+
+        // Sway 3D Chai Cups stacked on Player's Head
+        p.stackSwayX = THREE.MathUtils.damp(p.stackSwayX, -p.vx * 0.025, 8, dt);
+        p.stackSwayZ = THREE.MathUtils.damp(p.stackSwayZ, -p.vz * 0.025, 8, dt);
+        for (let i = 0; i < p.chai; i++) {
+          const cup = playerHeadCups[i];
+          if (!cup) continue;
+          const factor = (i + 1) * 0.42;
+          cup.position.x = p.stackSwayX * factor;
+          cup.position.z = p.stackSwayZ * factor;
+          cup.rotation.z = -p.stackSwayX * 0.35;
+          cup.rotation.x = p.stackSwayZ * 0.35;
+        }
+
+        // 5. Auto-Brew when standing inside the 3D Brew Ring
+        const distToBrew = Math.hypot(p.x - BREW_ZONE_POS.x, p.z - BREW_ZONE_POS.z);
+        if (distToBrew < 1.55 && p.brewCooldown <= 0 && p.chai < state.maxStack) {
+          brewOneChai(false);
+        }
+
+        // 6. Auto-Serve when walking close to a Customer Table
+        for (let i = 0; i < TABLES.length; i++) {
+          const table = TABLES[i];
+          if (table.customer && p.chai > 0) {
+            const distToTable = Math.hypot(p.x - table.pos.x, p.z - table.pos.z);
+            if (distToTable < 2.25) {
+              tryPlayerServeTable(table, false);
+            }
+          }
+        }
+
+        // 7. Customer Spawning & Angry Material System (>10s RED material, >15s Leaves with -$20)
+        for (let i = 0; i < TABLES.length; i++) {
+          const table = TABLES[i];
+          if (!table.customer) {
+            table.spawnTimer -= dt;
+            if (table.spawnTimer <= 0) {
+              spawnCustomerAtTable(table);
+            }
+          } else {
+            const c = table.customer;
+            const rig = table.customerRig;
+            c.enterScale = THREE.MathUtils.damp(c.enterScale, 1, 10, dt);
+            rig.scale.setScalar(c.enterScale);
+            c.waitTime += dt;
+
+            const ratio = Math.max(0, 1 - c.waitTime / 15);
+            if (Math.abs(ratio - table.lastBarRatio) > 0.008) {
+              table.lastBarRatio = ratio;
+              table.bubbleBarEl.style.transform = `scaleX(${ratio.toFixed(3)})`;
+            }
+
+            if (c.waitTime >= 10) {
+              if (!c.warnedRed) {
+                c.warnedRed = true;
+                Sound.angryWarn();
+                table.bubbleEl.classList.add('angry');
+                table.bubbleBarEl.style.backgroundColor = '#dc2626';
+                addFloatingWorldText(table.pos.x, 2.7, table.pos.z - 1.1, 'ANGRY! (>10s)', '#f87171', 18);
+
+                const ud = rig.userData;
+                ud.torso.material = MAT.angryRedMat;
+                ud.head.material = MAT.angryRedMat;
+                ud.armL.material = MAT.angryRedMat;
+                ud.armR.material = MAT.angryRedMat;
+                ud.turban.material = MAT.angryRedMat;
+                ud.angerRing.visible = true;
+              }
+              rig.position.x = Math.sin(state.worldTime * 40) * 0.08;
+            } else if (c.waitTime > 6) {
+              table.bubbleBarEl.style.backgroundColor = '#f59e0b';
+            }
+
+            if (c.waitTime >= 15) {
+              state.money = Math.max(0, state.money - 20);
+              state.walkoutCount += 1;
+              triggerCameraShake(0.4, 0.25);
+              Sound.angryLeave();
+              addFloatingWorldText(table.pos.x, 2.6, table.pos.z - 1.0, '-$20 (Angry Walkout!)', '#ef4444', 24);
+              pulseCard(elMoneyCard);
+              removeCustomerFromTable(table);
+              updateHUD();
+              saveProgress();
+            }
+          }
+        }
+
+        // 8. Hired 3D Chotu Staff Auto-Serve (1 customer per 3s per staff)
+        if (state.staffCount > 0) {
+          state.staffTimer += dt * state.staffCount;
+          if (state.staffTimer >= 3.0) {
+            let urgentTable = null;
+            let maxWait = -1;
+            for (let i = 0; i < TABLES.length; i++) {
+              const table = TABLES[i];
+              if (table.customer && table.customer.waitTime > maxWait) {
+                maxWait = table.customer.waitTime;
+                urgentTable = table;
+              }
+            }
+
+            if (urgentTable) {
+              state.staffTimer -= 3.0;
+              const actor = state.staffActors[0];
+              if (actor) {
+                _staffFromVec.set(actor.mesh.position.x, 1.5, actor.mesh.position.z);
+              } else {
+                _staffFromVec.set(BREW_ZONE_POS.x, 1.5, BREW_ZONE_POS.z);
+              }
+              completeCustomerServe(urgentTable, true, _staffFromVec);
+            } else {
+              state.staffTimer = 2.95;
+            }
+          }
+
+          for (let idx = 0; idx < state.staffActors.length; idx++) {
+            const actor = state.staffActors[idx];
+            const tbl = TABLES[idx % TABLES.length];
+            const destX = tbl && tbl.customer ? tbl.pos.x - 1.3 : actor.homeX;
+            const destZ = tbl && tbl.customer ? tbl.pos.z + 0.8 : actor.homeZ;
+            const dx = destX - actor.mesh.position.x;
+            const dz = destZ - actor.mesh.position.z;
+            const dist = Math.hypot(dx, dz);
+            if (dist > 0.15) {
+              actor.mesh.position.x += (dx / dist) * 4.2 * dt;
+              actor.mesh.position.z += (dz / dist) * 4.2 * dt;
+              actor.mesh.rotation.y = Math.atan2(dx, dz);
+              actor.walkCycle += dt * 11;
+              actor.mesh.position.y = Math.abs(Math.sin(actor.walkCycle)) * 0.07;
+            } else {
+              actor.mesh.position.y = THREE.MathUtils.damp(actor.mesh.position.y, 0, 10, dt);
+            }
+          }
+        }
+      }
+
+      function updateCamera(dt) {
+        const targetCamX = state.player.x * 0.18;
+        const targetCamZ = BASE_CAM_OFFSET.z + state.player.z * 0.15;
+
+        camera.position.x = THREE.MathUtils.damp(camera.position.x, targetCamX, 5, dt);
+        camera.position.y = THREE.MathUtils.damp(camera.position.y, BASE_CAM_OFFSET.y, 5, dt);
+        camera.position.z = THREE.MathUtils.damp(camera.position.z, targetCamZ, 5, dt);
+
+        if (state.shakeTime > 0) {
+          state.shakeTime = Math.max(0, state.shakeTime - dt);
+          const s = state.shakeMag * (state.shakeTime / 0.25);
+          camera.position.x += (Math.random() - 0.5) * s;
+          camera.position.y += (Math.random() - 0.5) * s;
+        }
+
+        camTarget.x = THREE.MathUtils.damp(camTarget.x, state.player.x * 0.12 + 0.5, 6, dt);
+        camera.lookAt(camTarget);
+      }
+
+      window.addEventListener('resize', () => {
+        viewportW = window.innerWidth;
+        viewportH = window.innerHeight;
+        camera.aspect = viewportW / viewportH;
+        camera.updateProjectionMatrix();
+        renderer.setSize(viewportW, viewportH);
+      });
+
+      // Initialize Saved Progress, Seed Initial Customers & Start Immediately!
+      const awaySec = loadProgress();
+      syncPlayerHeadStackMeshes(state.player.chai);
+      spawnCustomerAtTable(TABLES[0]);
+      spawnCustomerAtTable(TABLES[1]);
+      updateHUD();
+      if (awaySec && awaySec >= 30) {
+        triggerOfflinePopup(awaySec);
+      }
+
+      let lastTime = performance.now();
+      function animate(now) {
+        requestAnimationFrame(animate);
+        const rawDt = (now - lastTime) * 0.001;
+        lastTime = now;
+        const dt = rawDt > 0 && rawDt < 0.1 ? rawDt : 0.016;
+
+        updateSimulation(dt);
+        updateCamera(dt);
+        renderer.render(scene, camera);
+        updateProjectedUI();
+      }
+      requestAnimationFrame(animate);
+    </script>
+  </body>
+</html>
